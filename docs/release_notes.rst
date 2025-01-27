@@ -6,6 +6,389 @@ v7 Breaking Changes Summary
 
 .. towncrier release notes start
 
+web3.py v7.7.0 (2025-01-15)
+---------------------------
+
+Bugfixes
+~~~~~~~~
+
+- Add a ``disconnect`` method to the AsyncHTTPProvider that closes all sessions and clears the cache (`#3557 <https://github.com/ethereum/web3.py/issues/3557>`__)
+- Fix a bug related to building the ipc path for connecting to a geth ``--dev`` instance via ``web3.auto.gethdev``. (`#3576 <https://github.com/ethereum/web3.py/issues/3576>`__)
+
+
+Features
+~~~~~~~~
+
+- Add a subscription manager to persistent connection providers, with support for handler methods for ``eth_subscribe`` subscriptions. (`#3554 <https://github.com/ethereum/web3.py/issues/3554>`__)
+- Implement a ``topic`` property for contract events to retrieve the topic for the event. (`#3578 <https://github.com/ethereum/web3.py/issues/3578>`__)
+
+
+Miscellaneous Changes
+~~~~~~~~~~~~~~~~~~~~~
+
+- `#3546 <https://github.com/ethereum/web3.py/issues/3546>`__
+
+
+Performance Improvements
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+- Improve ``AttributeDict.recursive()`` and ``AttributeDictMiddleware`` performance, effectively speeding up response processing for attrdict middleware by nearly 2x. (`#3575 <https://github.com/ethereum/web3.py/issues/3575>`__)
+
+
+web3.py v7.6.1 (2024-12-18)
+---------------------------
+
+Bugfixes
+~~~~~~~~
+
+- Include an end-of-line delimiter when sending messages via IPC with the ``IPCProvider`` and ``AsyncIPCProvider``. (`#3537 <https://github.com/ethereum/web3.py/issues/3537>`__)
+- Contract functions and events no longer initialize for each call. Retrieval of overloaded functions and events is now deterministic. Any ambiguity will result in an exception being raised. (`#3540 <https://github.com/ethereum/web3.py/issues/3540>`__)
+- Bump the eth-tester version to one that works in the tester dependency extras (`#3555 <https://github.com/ethereum/web3.py/issues/3555>`__)
+
+
+Improved Documentation
+~~~~~~~~~~~~~~~~~~~~~~
+
+- Update ENS-related links (`#3563 <https://github.com/ethereum/web3.py/issues/3563>`__)
+
+
+Internal Changes - for web3.py Contributors
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+- Upgrade Geth Fixture to 1.14.12 (`#3533 <https://github.com/ethereum/web3.py/issues/3533>`__)
+- Delete ``ARCHITECTURE.md`` as unused (`#3547 <https://github.com/ethereum/web3.py/issues/3547>`__)
+
+
+Miscellaneous Changes
+~~~~~~~~~~~~~~~~~~~~~
+
+- `#3525 <https://github.com/ethereum/web3.py/issues/3525>`__
+
+
+web3.py v7.6.0 (2024-11-22)
+---------------------------
+
+Bugfixes
+~~~~~~~~
+
+- Update the `ContractEvents` class to raise a `NoABIFound` exception if the `Contract` is initialized without an `ABI` and an attempt to access an event is made. This exception makes `ContractEvents` consistent with `ContractFunctions`. (`#3491 <https://github.com/ethereum/web3.py/issues/3491>`__)
+
+
+Features
+~~~~~~~~
+
+- Contracts with overloaded functions or events are now supported. The Contract initializes functions and events using an identifier to distinguish between them. The identifier is the function or event signature, which consists of the name and the parameter types. (`#3491 <https://github.com/ethereum/web3.py/issues/3491>`__)
+- - Support for ``w3.eth.blob_base_fee``
+  - Async support for ``w3.eth.blob_base_fee`` (`#3527 <https://github.com/ethereum/web3.py/issues/3527>`__)
+
+
+Internal Changes - for web3.py Contributors
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+- Pin ``websockets<14`` due to breaking changes (`#3529 <https://github.com/ethereum/web3.py/issues/3529>`__)
+
+
+Miscellaneous Changes
+~~~~~~~~~~~~~~~~~~~~~
+
+- `#3491 <https://github.com/ethereum/web3.py/issues/3491>`__
+
+
+web3.py v7.5.0 (2024-11-06)
+---------------------------
+
+Improved Documentation
+~~~~~~~~~~~~~~~~~~~~~~
+
+- Polish docs index page (`#3522 <https://github.com/ethereum/web3.py/issues/3522>`__)
+
+
+Features
+~~~~~~~~
+
+- Add support for Geth Debug traceTransaction. (`#3334 <https://github.com/ethereum/web3.py/issues/3334>`__)
+- New contract methods to obtain event elements from a contract ABI using a name, signature, selector, or topic. (`#3472 <https://github.com/ethereum/web3.py/issues/3472>`__)
+
+
+Internal Changes - for web3.py Contributors
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+- Add python 3.13 support (`#3493 <https://github.com/ethereum/web3.py/issues/3493>`__)
+- Compile test contracts with newly released Solidity ``v0.8.28`` to ensure compatibility. (`#3515 <https://github.com/ethereum/web3.py/issues/3515>`__)
+
+
+web3.py v7.4.0 (2024-10-16)
+---------------------------
+
+Bugfixes
+~~~~~~~~
+
+- Fix a bug where CCIP-Read expected a ``{sender}`` in the url for a POST request. If ``{data}`` is missing from the url, assume a POST request is being made regardless of whether ``{sender}`` is present. (`#3291 <https://github.com/ethereum/web3.py/issues/3291>`__)
+- Fix a bug where non-mainnet chains could not cache requests based on missing ``finalized`` block number. (`#3508 <https://github.com/ethereum/web3.py/issues/3508>`__)
+- Send ``json``, not ``data`` with CCIP-Read POST requests. (`#3512 <https://github.com/ethereum/web3.py/issues/3512>`__)
+
+
+Improved Documentation
+~~~~~~~~~~~~~~~~~~~~~~
+
+- Update the request caching documentation to clarify on when to reach for request caching and how to configure the request validation threshold for certain endpoints. (`#3508 <https://github.com/ethereum/web3.py/issues/3508>`__)
+
+
+Features
+~~~~~~~~
+
+- Allow a time interval, in seconds, to be used as the ``request_cache_validation_threshold`` for request caching. Keep a list of internal default values based on the chain id for some of the bigger chains. (`#3508 <https://github.com/ethereum/web3.py/issues/3508>`__)
+
+
+web3.py v7.3.1 (2024-10-14)
+---------------------------
+
+Bugfixes
+~~~~~~~~
+
+- Properly wrap ``AsyncBeacon.request_timeout`` float in a ``aiohttp.ClientTimeout`` when making requests. (`#3503 <https://github.com/ethereum/web3.py/issues/3503>`__)
+- Changes related to an `eth-typing` bugfix, input types for ``ABIEvent``: ``ABIComponent`` -> ``ABIComponentIndexed``. (`#3510 <https://github.com/ethereum/web3.py/issues/3510>`__)
+
+
+Improved Documentation
+~~~~~~~~~~~~~~~~~~~~~~
+
+- Fix ``EthereumTesterProvider`` signature in docs, added an ``eth_tester`` example. (`#3500 <https://github.com/ethereum/web3.py/issues/3500>`__)
+- Fix `pip install -e ".[dev]"` command in linux README. (`#3505 <https://github.com/ethereum/web3.py/issues/3505>`__)
+
+
+Internal Changes - for web3.py Contributors
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+- Update the ENSIP-15 to the latest spec and update the test suite. (`#3501 <https://github.com/ethereum/web3.py/issues/3501>`__)
+
+
+web3.py v7.3.0 (2024-09-25)
+---------------------------
+
+Bugfixes
+~~~~~~~~
+
+- Base default ``maxFeePerGas`` calculation off of existing ``maxPriorityFeePerGas`` key instead of separate RPC call (`#3052 <https://github.com/ethereum/web3.py/issues/3052>`__)
+- Add back dependency extra for 'tester'. (`#3480 <https://github.com/ethereum/web3.py/issues/3480>`__)
+- Fix a bug where sensitive requests that make use of block data should not be cached until some validation threshold deems it is safe to do so, when request caching is turned on. (`#3483 <https://github.com/ethereum/web3.py/issues/3483>`__)
+
+
+Improved Documentation
+~~~~~~~~~~~~~~~~~~~~~~
+
+- Update ``contract.encode_abi`` signature in docs and migration guide (`#3473 <https://github.com/ethereum/web3.py/issues/3473>`__)
+- Update documentation around ``SignAndSendRawMiddlewareBuilder`` injection into the middleware onion. It should be injected lower in the stack than any middleware that modifies the transaction, in order to ensure those modified fields are signed. (`#3488 <https://github.com/ethereum/web3.py/issues/3488>`__)
+- Docs cleanups related to ``test`` vs ``tester`` install extras. (`#3496 <https://github.com/ethereum/web3.py/issues/3496>`__)
+
+
+Features
+~~~~~~~~
+
+- Add a configuration for request caching that sets a threshold for validating cached requests that make use of block data. This can be turned off altogether by setting the threshold to ``None``. (`#3483 <https://github.com/ethereum/web3.py/issues/3483>`__)
+- Add a configuration option for the ``read_buffer_limit`` for ``AsyncIPCProvider`` in order to control the expected message size limit (defaults to 20MB). Add ``ReadBufferLimitReached`` for when the read limit is reached, extend from ``PersistentConnectionError``. (`#3492 <https://github.com/ethereum/web3.py/issues/3492>`__)
+
+
+Internal Changes - for web3.py Contributors
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+- Test warning cleanup (`#3468 <https://github.com/ethereum/web3.py/issues/3468>`__)
+- Re-compile test contracts with recently released Solidity ``v0.8.27``. (`#3475 <https://github.com/ethereum/web3.py/issues/3475>`__)
+- Re-organize the install extras. Re-define the ``test`` extra to always include the ``tester`` extra since it's needed for testing. (`#3495 <https://github.com/ethereum/web3.py/issues/3495>`__)
+
+
+Miscellaneous Changes
+~~~~~~~~~~~~~~~~~~~~~
+
+- `#3490 <https://github.com/ethereum/web3.py/issues/3490>`__
+
+
+Performance Improvements
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+- Improve logic for reading from the async IPC socket in order to properly handle and adjust the handling of large messages. This improves reading speeds in general. (`#3492 <https://github.com/ethereum/web3.py/issues/3492>`__)
+
+
+web3.py v7.2.0 (2024-08-29)
+---------------------------
+
+Bugfixes
+~~~~~~~~
+
+- Fix a bug with newer ``hexbytes`` versions that yield non-0x-prefixed hex for ``HexBytes``: ``raw_transaction.hex()`` -> ``raw_transaction.to_0x_hex()``. (`#3471 <https://github.com/ethereum/web3.py/issues/3471>`__)
+
+
+Features
+~~~~~~~~
+
+- HTTPProvider and AsyncHTTPProvider's get_request_headers is now available on both the class and the instance (`#3467 <https://github.com/ethereum/web3.py/issues/3467>`__)
+
+
+web3.py v7.1.0 (2024-08-28)
+---------------------------
+
+Bugfixes
+~~~~~~~~
+
+- Specify a unique ``__hash__()`` for unhashable ``Web3Middleware`` types and use this hash as the middleware onion key when a name is not provided for the middleware. This fixes a bug where different middleware were given the same name and therefore raised errors. (`#3463 <https://github.com/ethereum/web3.py/issues/3463>`__)
+
+
+Improved Documentation
+~~~~~~~~~~~~~~~~~~~~~~
+
+- Fix bug in filters example code (`#3455 <https://github.com/ethereum/web3.py/issues/3455>`__)
+- Update ``v6`` -> ``v7`` migration guide with examples for importing and adding middleware, as well as examples on how to use the ``MiddlewareBuilder`` classes. (`#3462 <https://github.com/ethereum/web3.py/issues/3462>`__)
+
+
+Features
+~~~~~~~~
+
+- Add sync and async support for beacon ``/eth/v1/beacon/blob_sidecars`` endpoint. (`#3407 <https://github.com/ethereum/web3.py/issues/3407>`__)
+- Allow user to call ContractFunctions without parentheses (`#3444 <https://github.com/ethereum/web3.py/issues/3444>`__)
+
+
+Internal Changes - for web3.py Contributors
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+- Refactor and DRY up CI run setup and reduce surface area for errors. Include pre-releases in CI runs for internally maintained libraries to try and catch any conflicts. (`#3452 <https://github.com/ethereum/web3.py/issues/3452>`__)
+- Bump `py-geth` to ``>=5.0.0`` from ``>=5.0.0b1`` now that stable has been released. This only matters for the ``test`` install extra (CI and dev purposes). (`#3458 <https://github.com/ethereum/web3.py/issues/3458>`__)
+
+
+web3.py v7.0.0 (2024-08-21)
+---------------------------
+
+Breaking Changes
+~~~~~~~~~~~~~~~~
+
+- Update `eth-utils` and `eth-typing` to latest major versions
+
+  `eth-utils` v5 and `eth-typing` v5 (`#3450 <https://github.com/ethereum/web3.py/issues/3450>`__)
+
+
+Improved Documentation
+~~~~~~~~~~~~~~~~~~~~~~
+
+- Improve batch request documentation. (`#3448 <https://github.com/ethereum/web3.py/issues/3448>`__)
+
+
+Internal Changes - for web3.py Contributors
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+- Fix Release Notes formatting (`#3454 <https://github.com/ethereum/web3.py/issues/3454>`__)
+
+
+web3.py v7.0.0-beta.9 (2024-08-01)
+----------------------------------
+
+Breaking Changes
+~~~~~~~~~~~~~~~~
+
+* Upgrades to use latest ``ABI`` utilities and typings from ``eth-utils`` and ``eth-typing``.
+
+  * Typings for ``ABI`` components are now available in the ``eth-typing`` package. ``ABI`` types previously in ``web3.types`` have been removed.
+  * New versions of existing ABI functions were added to ``eth-utils`` and are now exposed in `web3.py` via ``web3.utils.abi``.
+  * ABI exceptions have been renamed in ``web3.exceptions``. The ``ABIEventFunctionNotFound`` and ``FallbackNotFound`` exceptions have been removed. Use ``ABIEventNotFound`` and ``ABIFallbackNotFound`` instead.
+  * ``MismatchedABI`` exceptions are raised instead of a ``Web3ValidationError`` for ABI related errors.
+  * ``encode_abi`` arguments have been updated to use ``abi_element_name`` instead of ``fn_name``. (`#3408 <https://github.com/ethereum/web3.py/issues/3408>`__)
+
+- Remove ``Web3ValidationError`` dependence / inheritance from `eth-utils` ``ValidationError``. (`#3443 <https://github.com/ethereum/web3.py/issues/3443>`__)
+
+
+Improved Documentation
+~~~~~~~~~~~~~~~~~~~~~~
+
+- Use autodoc and update ABI functions with docstrings and doctests. (`#3408 <https://github.com/ethereum/web3.py/issues/3408>`__)
+
+
+Features
+~~~~~~~~
+
+* Utilities to extract function and event ``ABI`` attributes from a contract. Utilities in the ``web3.utils.abi`` module parse ABI elements and check encodability of provided arguments. ABI functions in ``eth-utils`` are exposed by the ``web3.utils.abi`` module.
+
+  * ``get_abi_element_info`` returns an ``ABIElementInfo`` TypedDict with the ``abi``, ``selector``, and ``arguments``.
+  * ``get_abi_element`` returns the ``ABI`` of a function, event, or error given the name and arguments.
+  * ``check_if_arguments_can_be_encoded`` returns true if the arguments can be encoded with the given ABI.
+  * ``get_event_abi`` returns the ``ABI`` of an event given the name.
+  * ``get_event_log_topics`` returns the log topics of an event given the name.
+  * ``log_topics_to_bytes`` returns the log topics as bytes. (`#3408 <https://github.com/ethereum/web3.py/issues/3408>`__)
+
+- Add explicit stream kwarg to HTTPProvider so that timeout can be more finely tuned. (`#3428 <https://github.com/ethereum/web3.py/issues/3428>`__)
+- Implement a ``RequestTimedOut`` exception, extending from ``Web3RPCError``, for when requests to the node time out. (`#3440 <https://github.com/ethereum/web3.py/issues/3440>`__)
+
+
+Internal Changes - for web3.py Contributors
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+- Run ``mypy`` locally using ``pre-commit`` hook, instead of within ``pre-commit`` container (`#3414 <https://github.com/ethereum/web3.py/issues/3414>`__)
+- Mitigate inconsistently failing tests for CI runs with appropriate ``flaky`` or ``pytest.mark.xfail()`` decorators. (`#3440 <https://github.com/ethereum/web3.py/issues/3440>`__)
+
+
+Miscellaneous Changes
+~~~~~~~~~~~~~~~~~~~~~
+
+- `#3408 <https://github.com/ethereum/web3.py/issues/3408>`__, `#3445 <https://github.com/ethereum/web3.py/issues/3445>`__
+
+
+web3.py v7.0.0-beta.8 (2024-07-24)
+----------------------------------
+
+Breaking Changes
+~~~~~~~~~~~~~~~~
+
+- Refactor the public ``socket`` api for persistent connection providers to properly define ``send()``, ``recv()``, and ``make_request()`` (send and wait for response) methods for interacting with the open socket. (`#3433 <https://github.com/ethereum/web3.py/issues/3433>`__)
+- Format entries in ``accessList`` ``storageKeys`` to be ``HexStr`` instead of ``HexBytes`` (`#3434 <https://github.com/ethereum/web3.py/issues/3434>`__)
+
+
+Bugfixes
+~~~~~~~~
+
+- Handle ``ConnectionClosedOK`` case for ``WebSocketProvider``. If a persistent connection is closed gracefully, log and raise a silent ``PersistentConnectionClosedOK`` exception, triggering an end to the message listener task and breaking out of the ``process_subscriptions()`` iterator. (`#3432 <https://github.com/ethereum/web3.py/issues/3432>`__)
+
+
+Features
+~~~~~~~~
+
+- Add ``popitem()`` functionality to the ``SimpleCache`` class as well as an async utility method to wait for the next item, ``async_await_and_popitem()``. (`#3433 <https://github.com/ethereum/web3.py/issues/3433>`__)
+
+
+Internal Changes - for web3.py Contributors
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+- Refactor some common logic for persistent connection providers back into the base ``PersistentConnectionProvider`` class to reduce code duplication and improve maintainability. (`#3433 <https://github.com/ethereum/web3.py/issues/3433>`__)
+
+
+web3.py v7.0.0-beta.7 (2024-06-26)
+----------------------------------
+
+Bugfixes
+~~~~~~~~
+
+- Change the ``exception_retry_configuration`` typing on http providers to be an ``Optional``, as setting this property to ``None`` effectively turns off retries on exceptions for requests. (`#3412 <https://github.com/ethereum/web3.py/issues/3412>`__)
+- A bugfix, pre-release, to update the ``Beacon`` APIs (sync and async) to properly use the new ``HTTPSessionManager``. (`#3421 <https://github.com/ethereum/web3.py/issues/3421>`__)
+
+
+Improved Documentation
+~~~~~~~~~~~~~~~~~~~~~~
+
+- Add an ``eth_subscribe`` example to the events guide (`#3403 <https://github.com/ethereum/web3.py/issues/3403>`__)
+
+
+Features
+~~~~~~~~
+
+- Properly handle ``InsufficientDataBytes`` errors when processing receipts (`#3388 <https://github.com/ethereum/web3.py/issues/3388>`__)
+- Provide explicit ``__all__`` exports for providers in `web3/providers/__init__.py`; update `web3/__init__.py` to include all provider classes including base classes. (`#3409 <https://github.com/ethereum/web3.py/issues/3409>`__)
+
+
+Internal Changes - for web3.py Contributors
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+- Re-compile test contracts with Solidity v0.8.25 to ensure compatibility. (`#3307 <https://github.com/ethereum/web3.py/issues/3307>`__)
+- Increase allowable range of eth-tester: 0.11.x and 0.12.x (`#3400 <https://github.com/ethereum/web3.py/issues/3400>`__)
+- Remove uses of signHash in tests, require eth-account >=0.13.0 in doctests (`#3404 <https://github.com/ethereum/web3.py/issues/3404>`__)
+- Use a ``HTTPSessionManager`` to manage sessions for http providers, rather than have them share a single session manager / cache. (`#3412 <https://github.com/ethereum/web3.py/issues/3412>`__)
+
+
 web3.py v7.0.0-beta.6 (2024-05-15)
 ----------------------------------
 
@@ -518,7 +901,7 @@ Improved Documentation
 
 - Add MEV blocking tutorial to Resources docs page (`#3072 <https://github.com/ethereum/web3.py/issues/3072>`__)
 - Fix documentation around current state of ``get_logs()`` usage and arguments. (`#3073 <https://github.com/ethereum/web3.py/issues/3073>`__)
-- Add an Ape hackathon kit to Resources documenation page (`#3082 <https://github.com/ethereum/web3.py/issues/3082>`__)
+- Add an Ape hackathon kit to Resources documentation page (`#3082 <https://github.com/ethereum/web3.py/issues/3082>`__)
 
 
 web3.py v6.8.0 (2023-08-02)

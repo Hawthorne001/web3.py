@@ -12,6 +12,7 @@ from eth_utils import (
 )
 from websockets import (
     ConnectionClosed,
+    ConnectionClosedOK,
 )
 
 from web3 import (
@@ -19,18 +20,23 @@ from web3 import (
 )
 from web3._utils.caching import (
     RequestInformation,
+    generate_cache_key,
 )
 from web3._utils.module_testing.module_testing_utils import (
     WebSocketMessageStreamMock,
 )
 from web3.exceptions import (
     TimeExhausted,
+    Web3RPCError,
 )
 from web3.providers.persistent import (
     WebSocketProvider,
 )
 from web3.types import (
     RPCEndpoint,
+)
+from web3.utils import (
+    EthSubscription,
 )
 
 
@@ -78,9 +84,11 @@ async def test_disconnect_cleanup():
     provider._request_processor._request_response_cache.cache("0", "0x1337")
     provider._request_processor._request_information_cache.cache("0", "0x1337")
     provider._request_processor._subscription_response_queue.put_nowait({"id": "0"})
+    provider._request_processor._handler_subscription_queue.put_nowait({"id": "0"})
     assert len(provider._request_processor._request_response_cache) == 1
     assert len(provider._request_processor._request_information_cache) == 1
     assert provider._request_processor._subscription_response_queue.qsize() == 1
+    assert provider._request_processor._handler_subscription_queue.qsize() == 1
 
     await provider.disconnect()
 
@@ -88,6 +96,7 @@ async def test_disconnect_cleanup():
     assert len(provider._request_processor._request_response_cache) == 0
     assert len(provider._request_processor._request_information_cache) == 0
     assert provider._request_processor._subscription_response_queue.empty()
+    assert provider._request_processor._handler_subscription_queue.empty()
 
 
 @pytest.mark.asyncio
@@ -269,12 +278,16 @@ async def test_listen_event_awaits_msg_processing_when_subscription_queue_is_ful
     sub_request_information = RequestInformation(
         method=RPCEndpoint("eth_subscribe"),
         params=["mock"],
-        response_formatters=(),
+        response_formatters=[[], [], []],
         subscription_id=sub_id,
     )
     async_w3.provider._request_processor._request_information_cache.cache(
-        "", sub_request_information
+        generate_cache_key(sub_id),
+        sub_request_information,
     )
+    sub = EthSubscription()
+    sub._id = sub_id
+    async_w3.subscription_manager._add_subscription(sub)
 
     mocked_sub = {
         "jsonrpc": "2.0",
@@ -304,8 +317,8 @@ async def test_listen_event_awaits_msg_processing_when_subscription_queue_is_ful
     async_w3.provider._listen_event.set.assert_not_called()
 
     async for message in async_w3.socket.process_subscriptions():
-        # assert the very next message is the mocked subscription
-        assert message == mocked_sub
+        # assert the very next message is the formatted mocked subscription
+        assert message == mocked_sub["params"]
         break
 
     # assert we set the _listen_event after we consume the message
@@ -365,3 +378,79 @@ async def test_async_iterator_pattern_exception_handling_for_subscriptions():
             pytest.fail("Expected `ConnectionClosed` exception.")
 
         assert iterations == 3
+
+
+@pytest.mark.asyncio
+async def test_connection_closed_ok_breaks_message_iteration():
+    with patch(
+        "web3.providers.persistent.websocket.connect",
+        new=lambda *_1, **_2: WebSocketMessageStreamMock(
+            raise_exception=ConnectionClosedOK(None, None)
+        ),
+    ):
+        w3 = await AsyncWeb3(WebSocketProvider("ws://mocked"))
+        async for _ in w3.socket.process_subscriptions():
+            pytest.fail("Should not reach this point.")
+
+
+@pytest.mark.asyncio
+async def test_listener_task_breaks_out_of_stream_when_cancelled():
+    with patch(
+        "web3.providers.persistent.websocket.connect",
+        new=lambda *_1, **_2: _mocked_ws_conn(),
+    ):
+        async_w3 = await AsyncWeb3(WebSocketProvider("ws://mocked"))
+
+    async_w3.provider._message_listener_task.cancel()
+    sub = EthSubscription()
+    sub._id = "0x1"
+    async_w3.subscription_manager._add_subscription(sub)
+    # this should hang indefinitely if the listener task does not put a
+    # ``TaskNotRunning`` in the ``_subscription_response_queue`` to break out of
+    # listening. The call to ``provider._handle_listener_task_exceptions`` bubbles up
+    # the exception.
+    with pytest.raises(asyncio.CancelledError):
+        async for _ in async_w3.socket.process_subscriptions():
+            ...
+
+
+@pytest.mark.asyncio
+async def test_listener_task_breaks_out_of_handle_subscriptions_when_cancelled():
+    with patch(
+        "web3.providers.persistent.websocket.connect",
+        new=lambda *_1, **_2: _mocked_ws_conn(),
+    ):
+        async_w3 = await AsyncWeb3(WebSocketProvider("ws://mocked"))
+
+    async_w3.provider._message_listener_task.cancel()
+    sub = EthSubscription(handler=AsyncMock())
+    sub._id = "0x1"
+
+    async_w3.subscription_manager._add_subscription(sub)
+    # this should hang indefinitely if the listener task does not put a
+    # ``TaskNotRunning`` in the ``_handler_subscription_queue`` to break out of
+    # listening. The call to ``provider._handle_listener_task_exceptions`` bubbles
+    # up the exception.
+    with pytest.raises(asyncio.CancelledError):
+        await async_w3.subscription_manager.handle_subscriptions(run_forever=True)
+
+
+@pytest.mark.asyncio
+async def test_persistent_connection_provider_empty_batch_response():
+    with patch(
+        "web3.providers.persistent.websocket.connect",
+        new=lambda *_1, **_2: _mocked_ws_conn(),
+    ):
+        async with AsyncWeb3(WebSocketProvider("ws://mocked")) as async_w3:
+            async_w3.provider._ws.recv = AsyncMock()
+            async_w3.provider._ws.recv.return_value = (
+                b'{"jsonrpc": "2.0","id":null,"error": {"code": -32600, "message": '
+                b'"empty batch"}}\n'
+            )
+            async with async_w3.batch_requests() as batch:
+                with pytest.raises(Web3RPCError, match="empty batch"):
+                    await batch.async_execute()
+
+            # assert that even though there was an error, we have reset the batching
+            # state
+            assert not async_w3.provider._is_batching

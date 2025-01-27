@@ -2,16 +2,13 @@ import contextlib
 import json
 import os
 import pprint
+import re
 import shutil
 import socket
 import subprocess
-import sys
 import time
 
 import common
-from eth_utils import (
-    is_same_address,
-)
 from eth_utils.curried import (
     apply_formatter_if,
     is_bytes,
@@ -206,8 +203,7 @@ def mine_block(w3):
 
 
 def setup_chain_state(w3):
-    coinbase = w3.eth.coinbase
-    assert is_same_address(coinbase, common.COINBASE)
+    coinbase = common.COINBASE
 
     #
     # Math Contract
@@ -256,11 +252,11 @@ def setup_chain_state(w3):
     revert_contract = revert_contract_factory(revert_deploy_receipt["contractAddress"])
 
     txn_hash_normal_function = revert_contract.functions.normalFunction().transact(
-        {"gas": 320000, "from": w3.eth.coinbase}
+        {"gas": 320000, "from": coinbase}
     )
     print("TXN_HASH_REVERT_NORMAL:", txn_hash_normal_function)
     txn_hash_revert_with_msg = revert_contract.functions.revertWithMessage().transact(
-        {"gas": 320000, "from": w3.eth.coinbase}
+        {"gas": 320000, "from": coinbase}
     )
     print("TXN_HASH_REVERT_WITH_MSG:", txn_hash_revert_with_msg)
     txn_receipt_revert_with_msg = w3.eth.wait_for_transaction_receipt(
@@ -273,7 +269,7 @@ def setup_chain_state(w3):
 
     txn_hash_revert_with_no_msg = (
         revert_contract.functions.revertWithoutMessage().transact(
-            {"gas": 320000, "from": w3.eth.coinbase}
+            {"gas": 320000, "from": coinbase}
         )
     )
     print("TXN_HASH_REVERT_WITH_NO_MSG:", txn_hash_revert_with_no_msg)
@@ -318,7 +314,8 @@ def setup_chain_state(w3):
     #
     # Empty Block
     #
-    empty_block_number = mine_block(w3)
+    time.sleep(2)
+    empty_block_number = w3.eth.block_number
     print("MINED_EMPTY_BLOCK")
     empty_block = w3.eth.get_block(empty_block_number)
     assert is_dict(empty_block)
@@ -364,6 +361,90 @@ def setup_chain_state(w3):
     return geth_fixture
 
 
+def update_geth_version_string(what_to_replace, new_version, change_next_line=False):
+    replaced = False
+    for file_path, changes in what_to_replace.items():
+        with open(file_path) as file:
+            lines = file.readlines()
+
+            for i, line in enumerate(lines):
+                for change in changes:
+                    if change["line_to_replace"] in line:
+                        if (
+                            change_next_line
+                            and change["next_line_contains"] in lines[i + 1]
+                        ):
+                            lines[i + 1] = change["replace_with"]
+                            replaced = True
+                            break
+                        else:
+                            lines[i] = change["replace_with"]
+                            replaced = True
+                            break
+
+        if not replaced:
+            raise ValueError("`geth_version` for {file_path} not found / replaced.")
+
+        with open(file_path, "w") as file:
+            file.writelines(lines)
+        print(f"Updated geth_version in {file_path} to {new_version}")
+
+
+def update_doc_version(new_version):
+    changes = {
+        "./docs/contributing.rst": [
+            {
+                "line_to_replace": "python -m geth.install ",
+                "replace_with": f"      $ python -m geth.install v{new_version}\n",
+            },
+            {
+                "line_to_replace": "GETH_BINARY=~",
+                "replace_with": f"      $ GETH_BINARY=~/.py-geth/geth-v{new_version}/bin/geth python ./tests/integration/generate_fixtures/go_ethereum.py\n",  # noqa: E501,
+            },
+        ]
+    }
+
+    update_geth_version_string(changes, new_version)
+
+
+def update_fixture_generation_version(new_version):
+    changes = {
+        "./tests/integration/go_ethereum/conftest.py": [
+            {
+                "line_to_replace": "GETH_FIXTURE_ZIP = ",
+                "replace_with": f'GETH_FIXTURE_ZIP = "geth-{new_version}-fixture.zip"\n',  # noqa: E501
+            },
+        ],
+        "./web3/tools/benchmark/node.py": [
+            {
+                "line_to_replace": "GETH_FIXTURE_ZIP = ",
+                "replace_with": f'GETH_FIXTURE_ZIP = "geth-{new_version}-fixture.zip"\n',  # noqa: E501
+            },
+        ],
+    }
+    update_geth_version_string(changes, new_version)
+
+
+def update_circleci_geth_version(new_version):
+    changes = {
+        "./.circleci/config.yml": [
+            {
+                "line_to_replace": "geth_version:\n",
+                "replace_with": f'    default: "{new_version}"\n',
+                "next_line_contains": "default:",
+            }
+        ]
+    }
+    update_geth_version_string(changes, new_version, change_next_line=True)
+
+
 if __name__ == "__main__":
-    fixture_dir = sys.argv[1]
-    generate_go_ethereum_fixture(fixture_dir)
+    geth_binary = os.environ.get("GETH_BINARY", None)
+    if not geth_binary:
+        raise ValueError("GETH_BINARY not set. Cannot generate geth fixture.")
+
+    geth_version = re.search(r"geth-v([\d.]+)/", geth_binary).group(1)
+    generate_go_ethereum_fixture(f"./tests/integration/geth-{geth_version}-fixture")
+    update_circleci_geth_version(geth_version)
+    update_fixture_generation_version(geth_version)
+    update_doc_version(geth_version)

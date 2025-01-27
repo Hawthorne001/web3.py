@@ -10,6 +10,9 @@ from eth_tester import (
 from eth_tester.exceptions import (
     TransactionFailed,
 )
+from eth_typing import (
+    ChecksumAddress,
+)
 from eth_utils import (
     is_checksum_address,
     is_dict,
@@ -55,7 +58,9 @@ KEYFILE_ACCOUNT_ADDRESS = "0xdC544d1AA88Ff8bbd2F2AeC754B1F1e99e1812fd"
 
 
 def _deploy_contract(w3, contract_factory):
-    deploy_txn_hash = contract_factory.constructor().transact({"from": w3.eth.coinbase})
+    deploy_txn_hash = contract_factory.constructor().transact(
+        {"from": w3.eth.default_account}
+    )
     deploy_receipt = w3.eth.wait_for_transaction_receipt(deploy_txn_hash)
     assert is_dict(deploy_receipt)
     contract_address = deploy_receipt["contractAddress"]
@@ -82,7 +87,7 @@ def _eth_tester_state_setup(w3):
     # fund the account
     w3.eth.send_transaction(
         {
-            "from": w3.eth.coinbase,
+            "from": ChecksumAddress(w3.eth.default_account),
             "to": KEYFILE_ACCOUNT_ADDRESS,
             "value": w3.to_wei(0.5, "ether"),
             "gas": 21000,
@@ -94,6 +99,7 @@ def _eth_tester_state_setup(w3):
 @pytest.fixture(scope="module")
 def w3(eth_tester_provider):
     _w3 = Web3(eth_tester_provider)
+    _w3.eth.default_account = _w3.eth.accounts[0]
     _eth_tester_state_setup(_w3)
     return _w3
 
@@ -101,7 +107,7 @@ def w3(eth_tester_provider):
 @pytest.fixture(scope="module")
 def math_contract_deploy_txn_hash(w3, math_contract_factory):
     deploy_txn_hash = math_contract_factory.constructor().transact(
-        {"from": w3.eth.coinbase}
+        {"from": w3.eth.default_account}
     )
     return deploy_txn_hash
 
@@ -148,8 +154,8 @@ def empty_block(w3):
 def block_with_txn(w3):
     txn_hash = w3.eth.send_transaction(
         {
-            "from": w3.eth.coinbase,
-            "to": w3.eth.coinbase,
+            "from": ChecksumAddress(w3.eth.default_account),
+            "to": ChecksumAddress(w3.eth.default_account),
             "value": w3.to_wei(1, "gwei"),
             "gas": 21000,
             "gasPrice": w3.to_wei(
@@ -173,11 +179,7 @@ def block_with_txn_with_log(w3, emitter_contract):
         which=EMITTER_ENUM["LogDoubleWithIndex"],
         arg0=12345,
         arg1=54321,
-    ).transact(
-        {
-            "from": w3.eth.coinbase,
-        }
-    )
+    ).transact({"from": w3.eth.default_account})
     txn = w3.eth.get_transaction(txn_hash)
     block = w3.eth.get_block(txn["blockNumber"])
     return block
@@ -460,25 +462,12 @@ class TestEthereumTesterEthModule(EthModuleTest):
         result = w3.eth.get_logs(filter_params)
         assert len(result) == 0
 
-    @disable_auto_mine
     def test_eth_call_old_contract_state(
         self, eth_tester, w3, math_contract, keyfile_account_address
     ):
-        # For now, ethereum tester cannot give call results in the pending block.
-        # Once that feature is added, then delete the except/else blocks.
-        try:
-            super().test_eth_call_old_contract_state(
-                w3, math_contract, keyfile_account_address
-            )
-        except AssertionError as err:
-            if str(err) == "pending call result was 0 instead of 1":
-                pass
-            else:
-                raise err
-        else:
-            raise AssertionError(
-                "eth-tester was unexpectedly able to give the pending call result"
-            )
+        super().test_eth_call_old_contract_state(
+            w3, math_contract, keyfile_account_address
+        )
 
     def test_eth_chain_id(self, w3):
         chain_id = w3.eth.chain_id
@@ -497,7 +486,7 @@ class TestEthereumTesterEthModule(EthModuleTest):
         self, w3, revert_contract, keyfile_account_address
     ):
         txn_params = revert_contract._prepare_transaction(
-            fn_name="revertWithMessage",
+            abi_element_identifier="revertWithMessage",
             transaction={
                 "from": keyfile_account_address,
                 "to": revert_contract.address,
@@ -512,7 +501,7 @@ class TestEthereumTesterEthModule(EthModuleTest):
         self, w3, revert_contract, keyfile_account_address
     ):
         txn_params = revert_contract._prepare_transaction(
-            fn_name="revertWithoutMessage",
+            abi_element_identifier="revertWithoutMessage",
             transaction={
                 "from": keyfile_account_address,
                 "to": revert_contract.address,
@@ -525,7 +514,7 @@ class TestEthereumTesterEthModule(EthModuleTest):
         self, w3, revert_contract, keyfile_account_address
     ):
         txn_params = revert_contract._prepare_transaction(
-            fn_name="revertWithMessage",
+            abi_element_identifier="revertWithMessage",
             transaction={
                 "from": keyfile_account_address,
                 "to": revert_contract.address,
@@ -541,7 +530,7 @@ class TestEthereumTesterEthModule(EthModuleTest):
     ):
         with pytest.raises(TransactionFailed, match="execution reverted"):
             txn_params = revert_contract._prepare_transaction(
-                fn_name="revertWithoutMessage",
+                abi_element_identifier="revertWithoutMessage",
                 transaction={
                     "from": keyfile_account_address,
                     "to": revert_contract.address,
@@ -556,7 +545,7 @@ class TestEthereumTesterEthModule(EthModuleTest):
         keyfile_account_address,
     ) -> None:
         txn_params = revert_contract._prepare_transaction(
-            fn_name="customErrorWithMessage",
+            abi_element_identifier="customErrorWithMessage",
             transaction={
                 "from": keyfile_account_address,
                 "to": revert_contract.address,
@@ -570,7 +559,7 @@ class TestEthereumTesterEthModule(EthModuleTest):
         self, w3, revert_contract, keyfile_account_address
     ):
         txn_params = revert_contract._prepare_transaction(
-            fn_name="customErrorWithoutMessage",
+            abi_element_identifier="customErrorWithoutMessage",
             transaction={
                 "from": keyfile_account_address,
                 "to": revert_contract.address,
@@ -586,7 +575,7 @@ class TestEthereumTesterEthModule(EthModuleTest):
         keyfile_account_address,
     ) -> None:
         txn_params = revert_contract._prepare_transaction(
-            fn_name="customErrorWithMessage",
+            abi_element_identifier="customErrorWithMessage",
             transaction={
                 "from": keyfile_account_address,
                 "to": revert_contract.address,
@@ -603,7 +592,7 @@ class TestEthereumTesterEthModule(EthModuleTest):
         keyfile_account_address,
     ) -> None:
         txn_params = revert_contract._prepare_transaction(
-            fn_name="customErrorWithoutMessage",
+            abi_element_identifier="customErrorWithoutMessage",
             transaction={
                 "from": keyfile_account_address,
                 "to": revert_contract.address,

@@ -39,18 +39,6 @@ def skip_if_testrpc():
     return _skip_if_testrpc
 
 
-@pytest.fixture()
-def wait_for_miner_start():
-    def _wait_for_miner_start(w3, timeout=60):
-        poll_delay_counter = PollDelayCounter()
-        with Timeout(timeout) as timeout:
-            while not w3.eth.mining or not w3.eth.hashrate:
-                time.sleep(poll_delay_counter())
-                timeout.check()
-
-    return _wait_for_miner_start
-
-
 @pytest.fixture(scope="module")
 def wait_for_block():
     def _wait_for_block(w3, block_number=1, timeout=None):
@@ -82,14 +70,17 @@ def wait_for_transaction():
     return _wait_for_transaction
 
 
-@pytest.fixture()
+@pytest.fixture
 def w3():
-    return Web3(EthereumTesterProvider())
+    w3 = Web3(EthereumTesterProvider())
+    w3.eth.default_account = w3.eth.accounts[0]
+    return w3
 
 
 @pytest.fixture(scope="module")
 def w3_non_strict_abi():
     w3 = Web3(EthereumTesterProvider())
+    w3.eth.default_account = w3.eth.accounts[0]
     w3.strict_bytes_type_checking = False
     return w3
 

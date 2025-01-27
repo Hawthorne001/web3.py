@@ -48,11 +48,11 @@ class RPC:
 
     # eth
     eth_accounts = RPCEndpoint("eth_accounts")
+    eth_blobBaseFee = RPCEndpoint("eth_blobBaseFee")
     eth_blockNumber = RPCEndpoint("eth_blockNumber")
     eth_call = RPCEndpoint("eth_call")
     eth_createAccessList = RPCEndpoint("eth_createAccessList")
     eth_chainId = RPCEndpoint("eth_chainId")
-    eth_coinbase = RPCEndpoint("eth_coinbase")
     eth_estimateGas = RPCEndpoint("eth_estimateGas")
     eth_feeHistory = RPCEndpoint("eth_feeHistory")
     eth_maxPriorityFeePerGas = RPCEndpoint("eth_maxPriorityFeePerGas")
@@ -94,8 +94,6 @@ class RPC:
     eth_getUncleCountByBlockHash = RPCEndpoint("eth_getUncleCountByBlockHash")
     eth_getUncleCountByBlockNumber = RPCEndpoint("eth_getUncleCountByBlockNumber")
     eth_getWork = RPCEndpoint("eth_getWork")
-    eth_hashrate = RPCEndpoint("eth_hashrate")
-    eth_mining = RPCEndpoint("eth_mining")
     eth_newBlockFilter = RPCEndpoint("eth_newBlockFilter")
     eth_newFilter = RPCEndpoint("eth_newFilter")
     eth_newPendingTransactionFilter = RPCEndpoint("eth_newPendingTransactionFilter")
@@ -142,6 +140,9 @@ class RPC:
 
     # web3
     web3_clientVersion = RPCEndpoint("web3_clientVersion")
+
+    # debug
+    debug_traceTransaction = RPCEndpoint("debug_traceTransaction")
 
 
 TRANSACTION_PARAMS_ABIS = {

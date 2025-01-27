@@ -5,17 +5,17 @@ from setuptools import (
 )
 
 extras_require = {
+    "tester": [
+        # Note: ethereum-maintained libraries in this list should be added to the
+        # `install_pre_releases.py` script.
+        "eth-tester[py-evm]>=0.12.0b1,<0.13.0b1",
+        "py-geth>=5.1.0",
+    ],
     "dev": [
         "build>=0.9.0",
         "bumpversion>=0.5.3",
-        "flaky>=3.7.0",
-        "hypothesis>=3.31.2",
         "ipython",
-        "pre-commit>=3.4.0",
-        "pytest-asyncio>=0.21.2,<0.23",
-        "pytest-mock>=1.10",
         "setuptools>=38.6.0",
-        "tox>=4.0.0",
         "tqdm>4.32",
         "twine>=1.13",
         "wheel",
@@ -25,23 +25,27 @@ extras_require = {
         "sphinx-autobuild>=2021.3.14",
         "sphinx_rtd_theme>=1.0.0",
         "towncrier>=21,<22",
-        # web3 will work but emit warnings with eth-account>=0.12.2,
-        # but doctests fail between 0.12.2 and 0.13.0
-        "eth-account>=0.13.0",
     ],
     "test": [
-        "eth-tester[py-evm]>=0.11.0b1,<0.13.0b1",
-        "py-geth>=4.1.0",
         "pytest-asyncio>=0.18.1,<0.23",
         "pytest-mock>=1.10",
         "pytest-xdist>=2.4.0",
         "pytest>=7.0.0",
+        "flaky>=3.7.0",
+        "hypothesis>=3.31.2",
+        "tox>=4.0.0",
+        "mypy==1.10.0",
+        "pre-commit>=3.4.0",
     ],
 }
 
 extras_require["dev"] = (
-    extras_require["dev"] + extras_require["docs"] + extras_require["test"]
+    extras_require["dev"]
+    + extras_require["docs"]
+    + extras_require["test"]
+    + extras_require["tester"]
 )
+extras_require["test"] = extras_require["test"] + extras_require["tester"]
 
 
 with open("./README.md") as readme:
@@ -51,7 +55,7 @@ with open("./README.md") as readme:
 setup(
     name="web3",
     # *IMPORTANT*: Don't manually change the version here. Use `make bump`, as described in readme
-    version="7.0.0-beta.6",
+    version="7.7.0",
     description="""web3: A Python library for interacting with Ethereum""",
     long_description=long_description,
     long_description_content_type="text/markdown",
@@ -60,18 +64,21 @@ setup(
     url="https://github.com/ethereum/web3.py",
     include_package_data=True,
     install_requires=[
-        "aiohttp>=3.7.4.post0",
+        # Note: ethereum-maintained libraries in this list should be added to the
+        # `install_pre_releases.py` script.
         "eth-abi>=5.0.1",
-        "eth-account>=0.12.2",
+        "eth-account>=0.13.1",
         "eth-hash[pycryptodome]>=0.5.1",
-        "eth-typing>=4.0.0",
-        "eth-utils>=4.0.0",
+        "eth-typing>=5.0.0",
+        "eth-utils>=5.0.0",
         "hexbytes>=1.2.0",
+        "aiohttp>=3.7.4.post0",
         "pydantic>=2.4.0",
         "pywin32>=223;platform_system=='Windows'",
-        "requests>=2.16.0",
+        "requests>=2.23.0",
         "typing-extensions>=4.0.1",
-        "websockets>=10.0.0",
+        "types-requests>=2.0.0",
+        "websockets>=10.0.0,<14.0.0",
         "pyunormalize>=15.0.0",
     ],
     python_requires=">=3.8, <4",
@@ -93,5 +100,6 @@ setup(
         "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
         "Programming Language :: Python :: 3.12",
+        "Programming Language :: Python :: 3.13",
     ],
 )

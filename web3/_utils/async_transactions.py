@@ -1,6 +1,8 @@
 from typing import (
     TYPE_CHECKING,
+    Dict,
     Optional,
+    Union,
     cast,
 )
 
@@ -42,21 +44,32 @@ if TYPE_CHECKING:
     )
 
 
-async def _estimate_gas(async_w3: "AsyncWeb3", tx: TxParams) -> int:
+# unused vars present in these funcs because they all need to have the same signature
+async def _estimate_gas(
+    async_w3: "AsyncWeb3", tx: TxParams, _defaults: Dict[str, Union[bytes, int]]
+) -> int:
     return await async_w3.eth.estimate_gas(tx)
 
 
-async def _max_fee_per_gas(async_w3: "AsyncWeb3", _tx: TxParams) -> Wei:
+async def _max_fee_per_gas(
+    async_w3: "AsyncWeb3", tx: TxParams, defaults: Dict[str, Union[bytes, int]]
+) -> Wei:
     block = await async_w3.eth.get_block("latest")
-    max_priority_fee = await async_w3.eth.max_priority_fee
-    return Wei(max_priority_fee + (2 * block["baseFeePerGas"]))
+    max_priority_fee = tx.get(
+        "maxPriorityFeePerGas", defaults.get("maxPriorityFeePerGas")
+    )
+    return Wei(int(max_priority_fee) + (2 * int(block["baseFeePerGas"])))
 
 
-async def _max_priority_fee_gas(async_w3: "AsyncWeb3", _tx: TxParams) -> Wei:
+async def _max_priority_fee_gas(
+    async_w3: "AsyncWeb3", _tx: TxParams, _defaults: Dict[str, Union[bytes, int]]
+) -> Wei:
     return await async_w3.eth.max_priority_fee
 
 
-async def _chain_id(async_w3: "AsyncWeb3", _tx: TxParams) -> int:
+async def _chain_id(
+    async_w3: "AsyncWeb3", _tx: TxParams, _defaults: Dict[str, Union[bytes, int]]
+) -> int:
     return await async_w3.eth.chain_id
 
 
@@ -64,9 +77,9 @@ TRANSACTION_DEFAULTS = {
     "value": 0,
     "data": b"",
     "gas": _estimate_gas,
-    "gasPrice": lambda async_w3, tx: async_w3.eth.generate_gas_price(tx),
-    "maxFeePerGas": _max_fee_per_gas,
+    "gasPrice": lambda async_w3, tx, _defaults: async_w3.eth.generate_gas_price(tx),
     "maxPriorityFeePerGas": _max_priority_fee_gas,
+    "maxFeePerGas": _max_fee_per_gas,
     "chainId": _chain_id,
 }
 
@@ -74,9 +87,7 @@ TRANSACTION_DEFAULTS = {
 async def get_block_gas_limit(
     web3_eth: "AsyncEth", block_identifier: Optional[BlockIdentifier] = None
 ) -> int:
-    if block_identifier is None:
-        block_identifier = await web3_eth.block_number
-    block = await web3_eth.get_block(block_identifier)
+    block = await web3_eth.get_block(block_identifier or "latest")
     return block["gasLimit"]
 
 
@@ -91,8 +102,8 @@ async def get_buffered_gas_estimate(
 
     if gas_estimate > gas_limit:
         raise Web3ValueError(
-            "Contract does not appear to be deployable within the "
-            f"current network gas limits.  Estimated: {gas_estimate}. "
+            "Gas estimate for transaction is higher than current network gas limits. "
+            f"Transaction could not be sent. Estimated: {gas_estimate}. "
             f"Current gas limit: {gas_limit}"
         )
 
@@ -122,7 +133,7 @@ async def async_fill_transaction_defaults(
         or any_in_dict(DYNAMIC_FEE_TXN_PARAMS, transaction)
     )
 
-    defaults = {}
+    defaults: Dict[str, Union[bytes, int]] = {}
     for key, default_getter in TRANSACTION_DEFAULTS.items():
         if key not in transaction:
             if (
@@ -143,9 +154,9 @@ async def async_fill_transaction_defaults(
                 if key == "gasPrice":
                     # `generate_gas_price()` is on the `BaseEth` class and does not
                     # need to be awaited
-                    default_val = default_getter(async_w3, transaction)
+                    default_val = default_getter(async_w3, transaction, defaults)
                 else:
-                    default_val = await default_getter(async_w3, transaction)
+                    default_val = await default_getter(async_w3, transaction, defaults)
             else:
                 default_val = default_getter
 

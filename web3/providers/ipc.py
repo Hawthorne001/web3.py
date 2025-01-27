@@ -32,6 +32,9 @@ from web3.types import (
 from .._utils.batching import (
     sort_batch_response_by_response_ids,
 )
+from .._utils.caching import (
+    handle_request_caching,
+)
 from ..exceptions import (
     Web3TypeError,
     Web3ValueError,
@@ -113,14 +116,15 @@ def get_default_ipc_path() -> str:
 
 
 def get_dev_ipc_path() -> str:
-    if os.environ.get("WEB3_PROVIDER_URI", ""):
-        return os.environ.get("WEB3_PROVIDER_URI")
+    web3_provider_uri = os.environ.get("WEB3_PROVIDER_URI", "")
+    if web3_provider_uri and "geth.ipc" in web3_provider_uri:
+        return web3_provider_uri
 
-    elif sys.platform == "darwin":
-        tmpdir = os.environ.get("TMPDIR", "")
+    elif sys.platform == "darwin" or sys.platform.startswith("linux"):
+        tmpdir = os.environ.get("TMPDIR", "/tmp")
         return os.path.expanduser(os.path.join(tmpdir, "geth.ipc"))
 
-    elif sys.platform.startswith("linux") or sys.platform.startswith("freebsd"):
+    elif sys.platform.endswith("freebsd"):
         return os.path.expanduser(os.path.join("/tmp", "geth.ipc"))
 
     elif sys.platform == "win32":
@@ -143,6 +147,7 @@ class IPCProvider(JSONBaseProvider):
         timeout: int = 30,
         **kwargs: Any,
     ) -> None:
+        super().__init__(**kwargs)
         if ipc_path is None:
             self.ipc_path = get_default_ipc_path()
         elif isinstance(ipc_path, str) or isinstance(ipc_path, Path):
@@ -153,7 +158,6 @@ class IPCProvider(JSONBaseProvider):
         self.timeout = timeout
         self._lock = threading.Lock()
         self._socket = PersistantSocket(self.ipc_path)
-        super().__init__(**kwargs)
 
     def __str__(self) -> str:
         return f"<{self.__class__.__name__} {self.ipc_path}>"
@@ -161,7 +165,7 @@ class IPCProvider(JSONBaseProvider):
     def _make_request(self, request: bytes) -> RPCResponse:
         with self._lock, self._socket as sock:
             try:
-                sock.sendall(request)
+                sock.sendall(request + b"\n")
             except BrokenPipeError:
                 # one extra attempt, then give up
                 sock = self._socket.reset()
@@ -189,6 +193,7 @@ class IPCProvider(JSONBaseProvider):
                         timeout.sleep(0)
                         continue
 
+    @handle_request_caching
     def make_request(self, method: RPCEndpoint, params: Any) -> RPCResponse:
         self.logger.debug(
             f"Making request IPC. Path: {self.ipc_path}, Method: {method}"

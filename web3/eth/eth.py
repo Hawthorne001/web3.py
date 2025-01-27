@@ -119,16 +119,16 @@ class Eth(BaseEth):
     def accounts(self) -> Tuple[ChecksumAddress]:
         return self._accounts()
 
-    # eth_hashrate
+    # eth_blobBaseFee
 
-    _hashrate: Method[Callable[[], int]] = Method(
-        RPC.eth_hashrate,
+    _eth_blobBaseFee: Method[Callable[[], Wei]] = Method(
+        RPC.eth_blobBaseFee,
         is_property=True,
     )
 
     @property
-    def hashrate(self) -> int:
-        return self._hashrate()
+    def blob_base_fee(self) -> Wei:
+        return self._eth_blobBaseFee()
 
     # eth_blockNumber
 
@@ -151,17 +151,6 @@ class Eth(BaseEth):
     @property
     def chain_id(self) -> int:
         return self._chain_id()
-
-    # eth_coinbase
-
-    _coinbase: Method[Callable[[], ChecksumAddress]] = Method(
-        RPC.eth_coinbase,
-        is_property=True,
-    )
-
-    @property
-    def coinbase(self) -> ChecksumAddress:
-        return self._coinbase()
 
     # eth_gasPrice
 
@@ -197,17 +186,6 @@ class Eth(BaseEth):
                 stacklevel=2,
             )
             return fee_history_priority_fee(self)
-
-    # eth_mining
-
-    _mining: Method[Callable[[], bool]] = Method(
-        RPC.eth_mining,
-        is_property=True,
-    )
-
-    @property
-    def mining(self) -> bool:
-        return self._mining()
 
     # eth_syncing
 
@@ -661,28 +639,8 @@ class Eth(BaseEth):
         mungers=[default_root_munger],
     )
 
-    # eth_submitHashrate
-
-    submit_hashrate: Method[Callable[[int, _Hash32], bool]] = Method(
-        RPC.eth_submitHashrate,
-        mungers=[default_root_munger],
-    )
-
-    # eth_getWork, eth_submitWork
-
-    get_work: Method[Callable[[], List[HexBytes]]] = Method(
-        RPC.eth_getWork,
-        is_property=True,
-    )
-
-    submit_work: Method[Callable[[int, _Hash32, _Hash32], bool]] = Method(
-        RPC.eth_submitWork,
-        mungers=[default_root_munger],
-    )
-
     @overload
-    # type error: Overloaded function signatures 1 and 2 overlap with incompatible return types  # noqa: E501
-    def contract(self, address: None = None, **kwargs: Any) -> Type[Contract]:  # type: ignore[overload-overlap]  # noqa: E501
+    def contract(self, address: None = None, **kwargs: Any) -> Type[Contract]:
         ...
 
     @overload

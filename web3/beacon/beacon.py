@@ -1,6 +1,9 @@
 from typing import (
     Any,
     Dict,
+    List,
+    Optional,
+    Union,
 )
 
 from eth_typing import (
@@ -8,16 +11,23 @@ from eth_typing import (
     HexStr,
 )
 
+from web3._utils.http_session_manager import (
+    HTTPSessionManager,
+)
 from web3.beacon.api_endpoints import (
     GET_ATTESTATIONS,
+    GET_ATTESTATIONS_REWARDS,
+    GET_ATTESTER_DUTIES,
     GET_ATTESTER_SLASHINGS,
     GET_BEACON_HEADS,
     GET_BEACON_STATE,
     GET_BLINDED_BLOCKS,
+    GET_BLOB_SIDECARS,
     GET_BLOCK,
     GET_BLOCK_ATTESTATIONS,
     GET_BLOCK_HEADER,
     GET_BLOCK_HEADERS,
+    GET_BLOCK_PROPOSERS_DUTIES,
     GET_BLOCK_ROOT,
     GET_BLS_TO_EXECUTION_CHANGES,
     GET_DEPOSIT_CONTRACT,
@@ -36,19 +46,18 @@ from web3.beacon.api_endpoints import (
     GET_LIGHT_CLIENT_UPDATES,
     GET_NODE_IDENTITY,
     GET_PEER,
+    GET_PEER_COUNT,
     GET_PEERS,
     GET_PROPOSER_SLASHINGS,
     GET_REWARDS,
     GET_SPEC,
+    GET_SYNC_COMMITTEE_DUTIES,
     GET_SYNCING,
     GET_VALIDATOR,
     GET_VALIDATOR_BALANCES,
     GET_VALIDATORS,
     GET_VERSION,
     GET_VOLUNTARY_EXITS,
-)
-from web3.session_manager import (
-    HTTPSessionManager,
 )
 
 
@@ -62,10 +71,20 @@ class Beacon:
         self.request_timeout = request_timeout
         self._request_session_manager = HTTPSessionManager()
 
-    def _make_get_request(self, endpoint_url: str) -> Dict[str, Any]:
+    def _make_get_request(
+        self, endpoint_url: str, params: Optional[Dict[str, str]] = None
+    ) -> Dict[str, Any]:
         uri = URI(self.base_url + endpoint_url)
         return self._request_session_manager.json_make_get_request(
-            uri, timeout=self.request_timeout
+            uri, params=params, timeout=self.request_timeout
+        )
+
+    def _make_post_request(
+        self, endpoint_url: str, body: Union[List[str], Dict[str, Any]]
+    ) -> Dict[str, Any]:
+        uri = URI(self.base_url + endpoint_url)
+        return self._request_session_manager.json_make_post_request(
+            uri, json=body, timeout=self.request_timeout
         )
 
     # [ BEACON endpoints ]
@@ -196,6 +215,9 @@ class Beacon:
     def get_peer(self, peer_id: str) -> Dict[str, Any]:
         return self._make_get_request(GET_PEER.format(peer_id))
 
+    def get_peer_count(self) -> Dict[str, Any]:
+        return self._make_get_request(GET_PEER_COUNT)
+
     def get_health(self) -> int:
         url = URI(self.base_url + GET_HEALTH)
         response = self._request_session_manager.get_response_from_get_request(url)
@@ -206,3 +228,42 @@ class Beacon:
 
     def get_syncing(self) -> Dict[str, Any]:
         return self._make_get_request(GET_SYNCING)
+
+    # [ BLOB endpoints ]
+
+    def get_blob_sidecars(
+        self, block_id: str, indices: Optional[List[int]] = None
+    ) -> Dict[str, Any]:
+        indices_param = {"indices": ",".join(map(str, indices))} if indices else None
+        return self._make_get_request(
+            GET_BLOB_SIDECARS.format(block_id),
+            params=indices_param,
+        )
+
+    # [ VALIDATOR endpoints ]
+
+    def get_attester_duties(
+        self, epoch: str, validator_indices: List[str]
+    ) -> Dict[str, Any]:
+        return self._make_post_request(
+            GET_ATTESTER_DUTIES.format(epoch), validator_indices
+        )
+
+    def get_block_proposer_duties(self, epoch: str) -> Dict[str, Any]:
+        return self._make_get_request(GET_BLOCK_PROPOSERS_DUTIES.format(epoch))
+
+    def get_sync_committee_duties(
+        self, epoch: str, validator_indices: List[str]
+    ) -> Dict[str, Any]:
+        return self._make_post_request(
+            GET_SYNC_COMMITTEE_DUTIES.format(epoch), validator_indices
+        )
+
+    # [ REWARDS endpoints ]
+
+    def get_attestations_rewards(
+        self, epoch: str, validator_indices: List[str]
+    ) -> Dict[str, Any]:
+        return self._make_post_request(
+            GET_ATTESTATIONS_REWARDS.format(epoch), validator_indices
+        )

@@ -1,7 +1,7 @@
 import pytest
 
 from web3.exceptions import (
-    ABIEventFunctionNotFound,
+    ABIEventNotFound,
     ABIFunctionNotFound,
 )
 
@@ -9,6 +9,11 @@ from web3.exceptions import (
 @pytest.fixture()
 def abi():
     return """[{"anonymous":false,"inputs":[{"indexed":false,"name":"value","type":"uint256"}],"name":"Increased","type":"function"}, {"anonymous":false,"inputs":[{"indexed":false,"name":"value","type":"uint256"}],"name":"Increased","type":"event"}]"""  # noqa: E501
+
+
+@pytest.fixture()
+def ambiguous_abis():
+    return """[{"anonymous":false,"inputs":[{"indexed":false,"name":"value","type":"uint256"}],"name":"Increased","type":"function"}, {"anonymous":false,"inputs":[{"indexed":false,"name":"value","type":"bytes32"}],"name":"Increased","type":"function"}, {"anonymous":false,"inputs":[{"indexed":false,"name":"value","type":"uint256"}],"name":"Increased","type":"event"}, {"anonymous":false,"inputs":[],"name":"Increased","type":"event"}]"""  # noqa: E501
 
 
 @pytest.mark.parametrize("attribute", ("functions", "events", "caller"))
@@ -22,7 +27,7 @@ def test_getattr(w3, abi, attribute):
     "attribute,error",
     (
         ("functions", ABIFunctionNotFound),
-        ("events", ABIEventFunctionNotFound),
+        ("events", ABIEventNotFound),
         ("caller", ABIFunctionNotFound),
     ),
 )

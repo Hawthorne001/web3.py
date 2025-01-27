@@ -15,6 +15,7 @@ from web3 import (
 
 from .common import (
     GoEthereumAdminModuleTest,
+    GoEthereumDebugModuleTest,
     GoEthereumEthModuleTest,
     GoEthereumNetModuleTest,
     GoEthereumWeb3ModuleTest,
@@ -41,13 +42,13 @@ def _geth_command_arguments(ws_port, base_geth_command_arguments, geth_version):
             "--ws.port",
             ws_port,
             "--ws.api",
-            "admin,eth,net,web3",
+            "admin,debug,eth,net,web3",
             "--ws.origins",
             "*",
             "--ipcdisable",
             "--allow-insecure-unlock",
         )
-        if geth_version.minor not in [11, 12, 13]:
+        if geth_version.minor not in [13, 14]:
             raise AssertionError("Unsupported Geth version")
     else:
         raise AssertionError("Unsupported Geth version")
@@ -95,6 +96,10 @@ class TestGoEthereumAdminModuleTest(GoEthereumAdminModuleTest):
             reason="Only one WebSocket endpoint is allowed to be active at any time"
         )
         super().test_admin_start_stop_ws(w3)
+
+
+class TestGoEthereumDebugModuleTest(GoEthereumDebugModuleTest):
+    pass
 
 
 class TestGoEthereumEthModuleTest(GoEthereumEthModuleTest):

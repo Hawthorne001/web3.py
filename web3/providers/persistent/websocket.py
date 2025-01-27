@@ -5,11 +5,8 @@ import os
 from typing import (
     Any,
     Dict,
-    List,
     Optional,
-    Tuple,
     Union,
-    cast,
 )
 
 from eth_typing import (
@@ -25,17 +22,12 @@ from websockets.client import (
     connect,
 )
 from websockets.exceptions import (
+    ConnectionClosedOK,
     WebSocketException,
 )
 
-from web3._utils.batching import (
-    BATCH_REQUEST_ID,
-    sort_batch_response_by_response_ids,
-)
-from web3._utils.caching import (
-    async_handle_request_caching,
-)
 from web3.exceptions import (
+    PersistentConnectionClosedOK,
     ProviderConnectionError,
     Web3ValidationError,
 )
@@ -43,7 +35,6 @@ from web3.providers.persistent import (
     PersistentConnectionProvider,
 )
 from web3.types import (
-    RPCEndpoint,
     RPCResponse,
 )
 
@@ -68,8 +59,6 @@ class WebSocketProvider(PersistentConnectionProvider):
     logger = logging.getLogger("web3.providers.WebSocketProvider")
     is_async: bool = True
 
-    _ws: Optional[WebSocketClientProtocol] = None
-
     def __init__(
         self,
         endpoint_uri: Optional[Union[URI, str]] = None,
@@ -77,9 +66,12 @@ class WebSocketProvider(PersistentConnectionProvider):
         # `PersistentConnectionProvider` kwargs can be passed through
         **kwargs: Any,
     ) -> None:
+        # initialize the endpoint_uri before calling the super constructor
         self.endpoint_uri = (
             URI(endpoint_uri) if endpoint_uri is not None else get_default_endpoint()
         )
+        super().__init__(**kwargs)
+        self._ws: Optional[WebSocketClientProtocol] = None
 
         if not any(
             self.endpoint_uri.startswith(prefix)
@@ -102,8 +94,6 @@ class WebSocketProvider(PersistentConnectionProvider):
 
         self.websocket_kwargs = merge(DEFAULT_WEBSOCKET_KWARGS, websocket_kwargs or {})
 
-        super().__init__(**kwargs)
-
     def __str__(self) -> str:
         return f"WebSocket connection: {self.endpoint_uri}"
 
@@ -122,65 +112,35 @@ class WebSocketProvider(PersistentConnectionProvider):
                 ) from e
             return False
 
+    async def socket_send(self, request_data: bytes) -> None:
+        if self._ws is None:
+            raise ProviderConnectionError(
+                "Connection to websocket has not been initiated for the provider."
+            )
+
+        await asyncio.wait_for(
+            self._ws.send(request_data), timeout=self.request_timeout
+        )
+
+    async def socket_recv(self) -> RPCResponse:
+        raw_response = await self._ws.recv()
+        return json.loads(raw_response)
+
+    # -- private methods -- #
+
     async def _provider_specific_connect(self) -> None:
         self._ws = await connect(self.endpoint_uri, **self.websocket_kwargs)
 
     async def _provider_specific_disconnect(self) -> None:
+        # this should remain idempotent
         if self._ws is not None and not self._ws.closed:
             await self._ws.close()
             self._ws = None
 
-    @async_handle_request_caching
-    async def make_request(self, method: RPCEndpoint, params: Any) -> RPCResponse:
-        request_data = self.encode_rpc_request(method, params)
-
-        if self._ws is None:
-            raise ProviderConnectionError(
-                "Connection to websocket has not been initiated for the provider."
-            )
-
-        await asyncio.wait_for(
-            self._ws.send(request_data), timeout=self.request_timeout
-        )
-
-        current_request_id = json.loads(request_data)["id"]
-        response = await self._get_response_for_request_id(current_request_id)
-
-        return response
-
-    async def make_batch_request(
-        self, requests: List[Tuple[RPCEndpoint, Any]]
-    ) -> List[RPCResponse]:
-        request_data = self.encode_batch_rpc_request(requests)
-
-        if self._ws is None:
-            raise ProviderConnectionError(
-                "Connection to websocket has not been initiated for the provider."
-            )
-
-        await asyncio.wait_for(
-            self._ws.send(request_data), timeout=self.request_timeout
-        )
-
-        response = cast(
-            List[RPCResponse],
-            await self._get_response_for_request_id(BATCH_REQUEST_ID),
-        )
-        return response
-
-    async def _provider_specific_message_listener(self) -> None:
-        async for raw_message in self._ws:
-            await asyncio.sleep(0)
-
-            response = json.loads(raw_message)
-            if isinstance(response, list):
-                response = sort_batch_response_by_response_ids(response)
-
-            subscription = (
-                response.get("method") == "eth_subscription"
-                if not isinstance(response, list)
-                else False
-            )
-            await self._request_processor.cache_raw_response(
-                response, subscription=subscription
+    async def _provider_specific_socket_reader(self) -> RPCResponse:
+        try:
+            return await self.socket_recv()
+        except ConnectionClosedOK:
+            raise PersistentConnectionClosedOK(
+                user_message="WebSocket connection received `ConnectionClosedOK`."
             )

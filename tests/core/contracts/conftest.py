@@ -10,6 +10,12 @@ from tests.core.contracts.utils import (
 from tests.utils import (
     async_partial,
 )
+from web3._utils.abi import (
+    get_abi_element_signature,
+)
+from web3._utils.contract_sources.contract_data.ambiguous_function_contract import (
+    AMBIGUOUS_FUNCTION_CONTRACT_DATA,
+)
 from web3._utils.contract_sources.contract_data.arrays_contract import (
     ARRAYS_CONTRACT_DATA,
 )
@@ -22,6 +28,7 @@ from web3._utils.contract_sources.contract_data.contract_caller_tester import (
     CONTRACT_CALLER_TESTER_DATA,
 )
 from web3._utils.contract_sources.contract_data.event_contracts import (
+    AMBIGUOUS_EVENT_NAME_CONTRACT_DATA,
     EVENT_CONTRACT_DATA,
     INDEXED_EVENT_CONTRACT_DATA,
 )
@@ -60,6 +67,10 @@ from web3._utils.contract_sources.contract_data.tuple_contracts import (
 )
 from web3.exceptions import (
     Web3ValueError,
+)
+from web3.utils.abi import (
+    abi_to_signature,
+    get_abi_element,
 )
 
 # --- function name tester contract --- #
@@ -187,6 +198,26 @@ def non_strict_string_contract(
     )
 
 
+# --- ambiguous function contract --- #
+
+
+@pytest.fixture(scope="session")
+def ambiguous_function_contract_data():
+    return AMBIGUOUS_FUNCTION_CONTRACT_DATA
+
+
+@pytest.fixture
+def ambiguous_function_contract_factory(w3):
+    return w3.eth.contract(**AMBIGUOUS_FUNCTION_CONTRACT_DATA)
+
+
+@pytest.fixture
+def ambiguous_function_contract(
+    w3, ambiguous_function_contract_factory, address_conversion_func
+):
+    return deploy(w3, ambiguous_function_contract_factory, address_conversion_func)
+
+
 # --- emitter contract --- #
 
 
@@ -217,6 +248,28 @@ def non_strict_emitter(
     return emitter_contract
 
 
+@pytest.fixture
+def emitter(
+    w3,
+    emitter_contract_data,
+    wait_for_transaction,
+    wait_for_block,
+    address_conversion_func,
+):
+    emitter_contract_factory = w3.eth.contract(**emitter_contract_data)
+
+    wait_for_block(w3)
+    deploy_txn_hash = emitter_contract_factory.constructor().transact({"gas": 30029121})
+    deploy_receipt = wait_for_transaction(w3, deploy_txn_hash)
+    contract_address = address_conversion_func(deploy_receipt["contractAddress"])
+
+    bytecode = w3.eth.get_code(contract_address)
+    assert bytecode == emitter_contract_factory.bytecode_runtime
+    _emitter = emitter_contract_factory(address=contract_address)
+    assert _emitter.address == contract_address
+    return _emitter
+
+
 # --- event contract --- #
 
 
@@ -230,9 +283,7 @@ def event_contract(
     wait_for_block(w3)
 
     event_contract_factory = w3.eth.contract(**EVENT_CONTRACT_DATA)
-    deploy_txn_hash = event_contract_factory.constructor().transact(
-        {"from": w3.eth.coinbase, "gas": 1000000}
-    )
+    deploy_txn_hash = event_contract_factory.constructor().transact({"gas": 1000000})
     deploy_receipt = wait_for_transaction(w3, deploy_txn_hash)
     contract_address = address_conversion_func(deploy_receipt["contractAddress"])
 
@@ -251,7 +302,7 @@ def indexed_event_contract(
 
     indexed_event_contract_factory = w3.eth.contract(**INDEXED_EVENT_CONTRACT_DATA)
     deploy_txn_hash = indexed_event_contract_factory.constructor().transact(
-        {"from": w3.eth.coinbase, "gas": 1000000}
+        {"gas": 1000000}
     )
     deploy_receipt = wait_for_transaction(w3, deploy_txn_hash)
     contract_address = address_conversion_func(deploy_receipt["contractAddress"])
@@ -261,6 +312,30 @@ def indexed_event_contract(
     indexed_event_contract = indexed_event_contract_factory(address=contract_address)
     assert indexed_event_contract.address == contract_address
     return indexed_event_contract
+
+
+@pytest.fixture
+def ambiguous_event_contract(
+    w3, wait_for_block, wait_for_transaction, address_conversion_func
+):
+    wait_for_block(w3)
+
+    ambiguous_event_contract_factory = w3.eth.contract(
+        **AMBIGUOUS_EVENT_NAME_CONTRACT_DATA
+    )
+    deploy_txn_hash = ambiguous_event_contract_factory.constructor().transact(
+        {"gas": 1000000}
+    )
+    deploy_receipt = wait_for_transaction(w3, deploy_txn_hash)
+    contract_address = address_conversion_func(deploy_receipt["contractAddress"])
+
+    bytecode = w3.eth.get_code(contract_address)
+    assert bytecode == ambiguous_event_contract_factory.bytecode_runtime
+    ambiguous_event_name_contract = ambiguous_event_contract_factory(
+        address=contract_address
+    )
+    assert ambiguous_event_name_contract.address == contract_address
+    return ambiguous_event_name_contract
 
 
 # --- arrays contract --- #
@@ -450,6 +525,11 @@ def invoke_contract(
     func_kwargs=None,
     tx_params=None,
 ):
+    function_signature = contract_function
+    function_arg_count = len(func_args or ()) + len(func_kwargs or {})
+    if function_arg_count == 0:
+        function_signature = get_abi_element_signature(contract_function)
+
     if func_args is None:
         func_args = []
     if func_kwargs is None:
@@ -462,7 +542,14 @@ def invoke_contract(
             f"allowable_invoke_method must be one of: {allowable_call_desig}"
         )
 
-    function = contract.functions[contract_function]
+    fn_abi = get_abi_element(
+        contract.abi,
+        function_signature,
+        *func_args,
+        abi_codec=contract.w3.codec,
+        **func_kwargs,
+    )
+    function = contract.functions[abi_to_signature(fn_abi)]
     result = getattr(function(*func_args, **func_kwargs), api_call_desig)(tx_params)
 
     return result
@@ -716,6 +803,37 @@ async def async_nested_tuple_contract_with_decode_tuples(
     )
 
 
+@pytest_asyncio.fixture
+async def async_event_contract(
+    async_w3, async_wait_for_transaction, async_wait_for_block, address_conversion_func
+):
+    async_event_contract_factory = async_w3.eth.contract(**EVENT_CONTRACT_DATA)
+
+    await async_wait_for_block(async_w3)
+    deploy_txn_hash = await async_event_contract_factory.constructor().transact(
+        {"gas": 1000000}
+    )
+    deploy_receipt = await async_wait_for_transaction(async_w3, deploy_txn_hash)
+    contract_address = address_conversion_func(deploy_receipt["contractAddress"])
+
+    bytecode = await async_w3.eth.get_code(contract_address)
+    assert bytecode == async_event_contract_factory.bytecode_runtime
+    event_contract = async_event_contract_factory(address=contract_address)
+    assert event_contract.address == contract_address
+    return event_contract
+
+
+@pytest_asyncio.fixture
+async def async_ambiguous_event_contract(async_w3, address_conversion_func):
+    async_ambiguous_event_contract_factory = async_w3.eth.contract(
+        **AMBIGUOUS_EVENT_NAME_CONTRACT_DATA
+    )
+
+    return await async_deploy(
+        async_w3, async_ambiguous_event_contract_factory, address_conversion_func
+    )
+
+
 async def async_invoke_contract(
     api_call_desig="call",
     contract=None,
@@ -724,6 +842,11 @@ async def async_invoke_contract(
     func_kwargs=None,
     tx_params=None,
 ):
+    function_signature = contract_function
+    function_arg_count = len(func_args or ()) + len(func_kwargs or {})
+    if function_arg_count == 0:
+        function_signature = get_abi_element_signature(contract_function)
+
     if func_args is None:
         func_args = []
     if func_kwargs is None:
@@ -736,7 +859,14 @@ async def async_invoke_contract(
             f"allowable_invoke_method must be one of: {allowable_call_desig}"
         )
 
-    function = contract.functions[contract_function]
+    fn_abi = get_abi_element(
+        contract.abi,
+        function_signature,
+        *func_args,
+        abi_codec=contract.w3.codec,
+        **func_kwargs,
+    )
+    function = contract.functions[abi_to_signature(fn_abi)]
     result = await getattr(function(*func_args, **func_kwargs), api_call_desig)(
         tx_params
     )
@@ -762,3 +892,27 @@ def async_call(request):
 @pytest.fixture
 def async_estimate_gas(request):
     return async_partial(async_invoke_contract, api_call_desig="estimate_gas")
+
+
+@pytest_asyncio.fixture
+async def async_emitter(
+    async_w3,
+    emitter_contract_data,
+    async_wait_for_transaction,
+    async_wait_for_block,
+    address_conversion_func,
+):
+    async_emitter_contract_factory = async_w3.eth.contract(**emitter_contract_data)
+
+    await async_wait_for_block(async_w3)
+    deploy_txn_hash = await async_emitter_contract_factory.constructor().transact(
+        {"gas": 10000000}
+    )
+    deploy_receipt = await async_wait_for_transaction(async_w3, deploy_txn_hash)
+    contract_address = address_conversion_func(deploy_receipt["contractAddress"])
+
+    bytecode = await async_w3.eth.get_code(contract_address)
+    assert bytecode == async_emitter_contract_factory.bytecode_runtime
+    _emitter = async_emitter_contract_factory(address=contract_address)
+    assert _emitter.address == contract_address
+    return _emitter

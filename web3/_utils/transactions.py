@@ -1,6 +1,7 @@
 import math
 from typing import (
     TYPE_CHECKING,
+    Dict,
     List,
     Literal,
     Optional,
@@ -75,14 +76,16 @@ VALID_TRANSACTION_PARAMS: List[TX_PARAM_LITERALS] = [
 TRANSACTION_DEFAULTS = {
     "value": 0,
     "data": b"",
-    "gas": lambda w3, tx: w3.eth.estimate_gas(tx),
-    "gasPrice": lambda w3, tx: w3.eth.generate_gas_price(tx),
+    "gas": lambda w3, tx, _defaults: w3.eth.estimate_gas(tx),
+    "gasPrice": lambda w3, tx, _defaults: w3.eth.generate_gas_price(tx),
+    "maxPriorityFeePerGas": lambda w3, _tx, _defaults: w3.eth.max_priority_fee,
     "maxFeePerGas": (
-        lambda w3, tx: w3.eth.max_priority_fee
-        + (2 * w3.eth.get_block("latest")["baseFeePerGas"])
+        lambda w3, tx, defaults: (
+            tx.get("maxPriorityFeePerGas", defaults.get("maxPriorityFeePerGas"))
+            + (2 * w3.eth.get_block("latest")["baseFeePerGas"])
+        )
     ),
-    "maxPriorityFeePerGas": lambda w3, tx: w3.eth.max_priority_fee,
-    "chainId": lambda w3, tx: w3.eth.chain_id,
+    "chainId": lambda w3, _tx, _defaults: w3.eth.chain_id,
 }
 
 if TYPE_CHECKING:
@@ -117,7 +120,7 @@ def fill_transaction_defaults(w3: "Web3", transaction: TxParams) -> TxParams:
         or any_in_dict(DYNAMIC_FEE_TXN_PARAMS, transaction)
     )
 
-    defaults = {}
+    defaults: Dict[str, Union[bytes, int]] = {}
     for key, default_getter in TRANSACTION_DEFAULTS.items():
         if key not in transaction:
             if (
@@ -135,7 +138,7 @@ def fill_transaction_defaults(w3: "Web3", transaction: TxParams) -> TxParams:
                     raise Web3ValueError(
                         f"You must specify a '{key}' value in the transaction"
                     )
-                default_val = default_getter(w3, transaction)
+                default_val = default_getter(w3, transaction, defaults)
             else:
                 default_val = default_getter
 
@@ -146,9 +149,7 @@ def fill_transaction_defaults(w3: "Web3", transaction: TxParams) -> TxParams:
 def get_block_gas_limit(
     w3: "Web3", block_identifier: Optional[BlockIdentifier] = None
 ) -> int:
-    if block_identifier is None:
-        block_identifier = w3.eth.block_number
-    block = w3.eth.get_block(block_identifier)
+    block = w3.eth.get_block(block_identifier or "latest")
     return block["gasLimit"]
 
 
@@ -163,8 +164,8 @@ def get_buffered_gas_estimate(
 
     if gas_estimate > gas_limit:
         raise Web3ValueError(
-            "Contract does not appear to be deployable within the "
-            f"current network gas limits.  Estimated: {gas_estimate}. "
+            "Gas estimate for transaction is higher than current network gas limits. "
+            f"Transaction could not be sent. Estimated: {gas_estimate}. "
             f"Current gas limit: {gas_limit}"
         )
 

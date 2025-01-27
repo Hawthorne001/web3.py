@@ -12,7 +12,9 @@ from web3._utils.module_testing import (  # noqa: F401
     AsyncNetModuleTest,
     EthModuleTest,
     GoEthereumAdminModuleTest,
+    GoEthereumAsyncDebugModuleTest,
     GoEthereumAsyncTxPoolModuleTest,
+    GoEthereumDebugModuleTest,
     GoEthereumTxPoolModuleTest,
     NetModuleTest,
     Web3ModuleTest,
@@ -72,7 +74,6 @@ class GoEthereumEthModuleTest(EthModuleTest):
             w3, keyfile_account_address_dual_type
         )
 
-    @pytest.mark.xfail(reason="Inconsistently creating timeout issues.", strict=False)
     def test_eth_get_raw_transaction_by_block(
         self,
         w3: "Web3",

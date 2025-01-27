@@ -31,7 +31,7 @@ legacy ``WebsocketProvider``. The ``LegacyWebSocketProvider`` has been deprecate
 If migrating from ``WebSocketProviderV2`` to ``WebSocketProvider``, you can expect the
 following changes:
 
-- Instantiation no longer requires the ``persistant_websocket`` method:
+- Instantiation no longer requires the ``persistent_websocket`` method:
 
   .. code-block:: python
 
@@ -82,17 +82,52 @@ instantiated with custom middleware.
 Class-Based Middleware Model
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The middleware model has been changed to a class-based model. Previously, middleware
-were defined as functions that tightly wrapped the provider's ``make_request`` function,
-where transformations could be conditionally applied before and after the request was made.
+The middleware model has been changed to a class-based model.
+
+.. code-block:: python
+
+    # v6 (no longer supported)
+    from web3.middleware import pythonic_middleware
+    w3.middleware_onion.add(pythonic_middleware)
+
+    # v7
+    from web3.middleware import PythonicMiddleware
+    w3.middleware_onion.add(PythonicMiddleware)
+
+Previously, middleware were defined as functions that tightly wrapped the provider's
+``make_request`` function, where transformations could be conditionally applied before
+and after the request was made.
 
 Now, middleware logic can be separated into ``request_processor`` and ``response_processor``
 functions that enable pre-request and post-response logic, respectively. This change offers
 a simpler, clearer interface for defining middleware, gives more flexibility for
-asynchronous operations and also paves the way for supporting batch requests - included in
-the roadmap for web3.py.
+asynchronous operations and also paved the way for supporting :ref:`batch_requests`.
 
-The new middleware model is documented in the :ref:`middleware_internals` section.
+Major changes for migration are highlighted in this section. Consult the
+:ref:`middleware_internals` section of the documentation for specifics and examples on
+the new class-based design.
+
+
+Middleware Builder Classes
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+In ``v6``, certain middleware needed to be constructed with parameters. This was done
+by passing the parameters to a constructor method.
+
+.. code-block:: python
+
+    # v6 (no longer supported)
+    from web3.middleware import construct_sign_and_send_raw_middleware
+    w3.middleware_onion.add(construct_sign_and_send_raw_middleware(private_key))
+
+In the class-based ``v7`` middleware model, a middleware builder class is instantiated
+with the necessary parameters via the ``build()`` method.
+
+.. code-block:: python
+
+    # v7
+    from web3.middleware import SignAndSendRawMiddlewareBuilder
+    w3.middleware_onion.inject(SignAndSendRawMiddlewareBuilder.build(private_key), layer=0)
 
 
 Middleware Renaming and Removals
@@ -195,6 +230,10 @@ web3.py. This allows a user to distinguish between when a method is not availabl
 the current provider, ``MethodUnavailable``, and when a method is not supported by
 web3.py under certain conditions, ``MethodNotSupported``.
 
+A ``MismatchedABI`` exception is now raised instead of a ``Web3ValidationError`` in
+cases where an ABI is not compatible with the data being passed to it. This change
+allows for more specific error handling when using certain ABI types.
+
 
 JSON-RPC Error Handling
 ```````````````````````
@@ -252,6 +291,26 @@ The ``personal`` namespace was used for managing accounts and keys and was depre
 in geth in ``v1.11.0``. Geth has moved to using ``clef`` for account and key management.
 
 
+ABI Types Removed
+`````````````````
+
+The type definitions for ABIs, deprecated in ``v6``, have been removed in ``v7``. New
+types have been introduced in the ``eth_typing`` ``v5`` package for ABIs. Improvements have
+been made to make required types more explicit and to offer better semantics.
+
+The following types from ``web3.types`` have been removed:
+- ``ABIEventParams`` is no longer available. Use ``ABIComponentIndexed`` from
+``eth_typing`` to represent event input components.
+- ``ABIEvent`` now resides in ``eth_typing``. ``ABIEvent.type`` and ``ABIEvent.name``
+are now required fields.
+- ``ABIFunctionComponents`` and ``ABIFunctionParams`` are no longer available. Use
+``ABIComponent`` from ``eth_typing`` to represent function input components.
+- ``ABIFunction`` now resides in ``eth_typing``. ``ABIFunction.type`` and
+``ABIFunction.name`` are now required fields.
+- ``ABIElement`` now resides in ``eth_typing`` and represents a ``Union`` of all valid
+ABI element types, ``ABICallable``, ``ABIEvent`` and ``ABIError``.
+
+
 Miscellaneous Changes
 ~~~~~~~~~~~~~~~~~~~~~
 
@@ -262,13 +321,18 @@ Miscellaneous Changes
 - ``User-Agent`` header was changed to a more readable format.
 - ``BaseContractFunctions`` iterator now returns instances of ``ContractFunction`` rather
   than the function names.
+- ``BaseContractFunction`` class attribute ``function_identifier`` has been removed in
+  favor of the ``abi_element_identifier`` attribute.
+- ``web3.contract.utils.call_contract_function()`` no longer uses ``fn_abi`` as a
+  parameter. Instead, the ``abi_callable`` parameter of type ``ABICallable`` is used.
 - Beacon API filename change: ``beacon/main.py`` -> ``beacon/beacon.py``.
 - The asynchronous version of ``w3.eth.wait_for_transaction_receipt()`` changes its
   signature to use ``Optional[float]`` instead of ``float`` since it may be ``None``.
 - ``get_default_ipc_path()`` and ``get_dev_ipc_path()`` now return the path value
   without checking if the ``geth.ipc`` file exists.
 - ``Web3.is_address()`` returns ``True`` for non-checksummed addresses.
-- ``Contract.encodeABI()`` has been renamed to ``Contract.encode_abi()``.
+- ``Contract.encodeABI()`` has been renamed to ``Contract.encode_abi()``. The ``fn_name``
+  argument has been changed to ``abi_element_identifier``.
 - JSON-RPC responses are now more strictly validated against the JSON-RPC 2.0
   specification while providing more informative error messages for invalid responses.
 
@@ -509,7 +573,7 @@ or the classic contract syntax:
 
 ``contract.functions.<function name>.call()``.
 
-Some more concrete examples can be found in the `ContractCaller docs <https://web3py.readthedocs.io/en/latest/contracts.html?highlight=Caller#contractcaller>`_
+Some more concrete examples can be found in the `ContractCaller docs <https://web3py.readthedocs.io/en/stable/web3.contract.html#contractcaller>`_
 
 
 Manager Provider

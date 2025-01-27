@@ -16,8 +16,16 @@ from eth_abi.exceptions import (
     DecodingError,
 )
 from eth_typing import (
+    ABI,
+    ABICallable,
+    ABIFunction,
     ChecksumAddress,
     TypeStr,
+)
+from eth_utils.abi import (
+    abi_to_signature,
+    filter_abi_by_type,
+    get_abi_output_types,
 )
 from eth_utils.toolz import (
     compose,
@@ -28,8 +36,6 @@ from hexbytes import (
 )
 
 from web3._utils.abi import (
-    filter_by_type,
-    get_abi_output_types,
     map_abi_data,
     named_tree,
     recursive_dict_to_namedtuple,
@@ -37,8 +43,10 @@ from web3._utils.abi import (
 from web3._utils.async_transactions import (
     async_fill_transaction_defaults,
 )
+from web3._utils.compat import (
+    TypeAlias,
+)
 from web3._utils.contracts import (
-    find_matching_fn_abi,
     prepare_transaction,
 )
 from web3._utils.normalizers import (
@@ -52,13 +60,16 @@ from web3.exceptions import (
     Web3ValueError,
 )
 from web3.types import (
-    ABI,
-    ABIFunction,
+    ABIElementIdentifier,
     BlockIdentifier,
-    FunctionIdentifier,
+    RPCEndpoint,
     StateOverride,
+    TContractEvent,
     TContractFn,
     TxParams,
+)
+from web3.utils.abi import (
+    get_abi_element,
 )
 
 if TYPE_CHECKING:
@@ -77,8 +88,8 @@ ACCEPTABLE_EMPTY_STRINGS = ["0x", b"0x", "", b""]
 def format_contract_call_return_data_curried(
     async_w3: Union["AsyncWeb3", "Web3"],
     decode_tuples: bool,
-    fn_abi: ABIFunction,
-    function_identifier: FunctionIdentifier,
+    fn_abi: ABICallable,
+    abi_element_identifier: ABIElementIdentifier,
     normalizers: Tuple[Callable[..., Any], ...],
     output_types: Sequence[TypeStr],
     return_data: Any,
@@ -92,7 +103,7 @@ def format_contract_call_return_data_curried(
         output_data = async_w3.codec.decode(output_types, return_data)
     except DecodingError as e:
         msg = (
-            f"Could not decode contract function call to {function_identifier} "
+            f"Could not decode contract function call to {abi_element_identifier} "
             f"with return data: {str(return_data)}, output_types: {output_types}"
         )
         raise BadFunctionCallOutput(msg) from e
@@ -103,7 +114,7 @@ def format_contract_call_return_data_curried(
     )
     normalized_data = map_abi_data(_normalizers, output_types, output_data)
 
-    if decode_tuples:
+    if decode_tuples and fn_abi["type"] == "function":
         decoded = named_tree(fn_abi["outputs"], normalized_data)
         normalized_data = recursive_dict_to_namedtuple(decoded)
 
@@ -114,11 +125,11 @@ def call_contract_function(
     w3: "Web3",
     address: ChecksumAddress,
     normalizers: Tuple[Callable[..., Any], ...],
-    function_identifier: FunctionIdentifier,
+    abi_element_identifier: ABIElementIdentifier,
     transaction: TxParams,
     block_id: Optional[BlockIdentifier] = None,
     contract_abi: Optional[ABI] = None,
-    fn_abi: Optional[ABIFunction] = None,
+    abi_callable: Optional[ABICallable] = None,
     state_override: Optional[StateOverride] = None,
     ccip_read_enabled: Optional[bool] = None,
     decode_tuples: Optional[bool] = False,
@@ -132,9 +143,9 @@ def call_contract_function(
     call_transaction = prepare_transaction(
         address,
         w3,
-        fn_identifier=function_identifier,
+        abi_element_identifier=abi_element_identifier,
         contract_abi=contract_abi,
-        fn_abi=fn_abi,
+        abi_callable=abi_callable,
         transaction=transaction,
         fn_args=args,
         fn_kwargs=kwargs,
@@ -147,17 +158,27 @@ def call_contract_function(
         ccip_read_enabled=ccip_read_enabled,
     )
 
-    if fn_abi is None:
-        fn_abi = find_matching_fn_abi(
-            contract_abi, w3.codec, function_identifier, args, kwargs
+    if abi_callable is None:
+        abi_callable = cast(
+            ABIFunction,
+            get_abi_element(
+                contract_abi,
+                abi_element_identifier,
+                *args,
+                abi_codec=w3.codec,
+                **kwargs,
+            ),
         )
 
-    output_types = get_abi_output_types(fn_abi)
+    # get the output types, which only exist for function types
+    output_types = []
+    if abi_callable["type"] == "function":
+        output_types = get_abi_output_types(abi_callable)
 
     provider = w3.provider
     if hasattr(provider, "_is_batching") and provider._is_batching:
-        # request_information == ((method, params), response_formatters)
-        request_information = tuple(return_data)
+        BatchingReturnData: TypeAlias = Tuple[Tuple[RPCEndpoint, Any], Tuple[Any, ...]]
+        request_information = tuple(cast(BatchingReturnData, return_data))
         method_and_params = request_information[0]
 
         # append return data formatting to result formatters
@@ -168,8 +189,8 @@ def call_contract_function(
             format_contract_call_return_data_curried(
                 w3,
                 decode_tuples,
-                fn_abi,
-                function_identifier,
+                abi_callable,
+                abi_element_identifier,
                 normalizers,
                 output_types,
             ),
@@ -198,7 +219,7 @@ def call_contract_function(
             )
         else:
             msg = (
-                f"Could not decode contract function call to {function_identifier} "
+                f"Could not decode contract function call to {abi_element_identifier} "
                 f"with return data: {str(return_data)}, output_types: {output_types}"
             )
         raise BadFunctionCallOutput(msg) from e
@@ -209,8 +230,8 @@ def call_contract_function(
     )
     normalized_data = map_abi_data(_normalizers, output_types, output_data)
 
-    if decode_tuples:
-        decoded = named_tree(fn_abi["outputs"], normalized_data)
+    if decode_tuples and abi_callable["type"] == "function":
+        decoded = named_tree(abi_callable["outputs"], normalized_data)
         normalized_data = recursive_dict_to_namedtuple(decoded)
 
     if len(normalized_data) == 1:
@@ -222,7 +243,7 @@ def call_contract_function(
 def transact_with_contract_function(
     address: ChecksumAddress,
     w3: "Web3",
-    function_name: Optional[FunctionIdentifier] = None,
+    abi_element_identifier: Optional[ABIElementIdentifier] = None,
     transaction: Optional[TxParams] = None,
     contract_abi: Optional[ABI] = None,
     fn_abi: Optional[ABIFunction] = None,
@@ -236,10 +257,10 @@ def transact_with_contract_function(
     transact_transaction = prepare_transaction(
         address,
         w3,
-        fn_identifier=function_name,
+        abi_element_identifier=abi_element_identifier,
         contract_abi=contract_abi,
         transaction=transaction,
-        fn_abi=fn_abi,
+        abi_callable=fn_abi,
         fn_args=args,
         fn_kwargs=kwargs,
     )
@@ -251,7 +272,7 @@ def transact_with_contract_function(
 def estimate_gas_for_function(
     address: ChecksumAddress,
     w3: "Web3",
-    fn_identifier: Optional[FunctionIdentifier] = None,
+    abi_element_identifier: Optional[ABIElementIdentifier] = None,
     transaction: Optional[TxParams] = None,
     contract_abi: Optional[ABI] = None,
     fn_abi: Optional[ABIFunction] = None,
@@ -269,9 +290,9 @@ def estimate_gas_for_function(
     estimate_transaction = prepare_transaction(
         address,
         w3,
-        fn_identifier=fn_identifier,
+        abi_element_identifier=abi_element_identifier,
         contract_abi=contract_abi,
-        fn_abi=fn_abi,
+        abi_callable=fn_abi,
         transaction=transaction,
         fn_args=args,
         fn_kwargs=kwargs,
@@ -283,7 +304,7 @@ def estimate_gas_for_function(
 def build_transaction_for_function(
     address: ChecksumAddress,
     w3: "Web3",
-    function_name: Optional[FunctionIdentifier] = None,
+    abi_element_identifier: Optional[ABIElementIdentifier] = None,
     transaction: Optional[TxParams] = None,
     contract_abi: Optional[ABI] = None,
     fn_abi: Optional[ABIFunction] = None,
@@ -299,9 +320,9 @@ def build_transaction_for_function(
     prepared_transaction = prepare_transaction(
         address,
         w3,
-        fn_identifier=function_name,
+        abi_element_identifier=abi_element_identifier,
         contract_abi=contract_abi,
-        fn_abi=fn_abi,
+        abi_callable=fn_abi,
         transaction=transaction,
         fn_args=args,
         fn_kwargs=kwargs,
@@ -319,14 +340,20 @@ def find_functions_by_identifier(
     callable_check: Callable[..., Any],
     function_type: Type[TContractFn],
 ) -> List[TContractFn]:
-    fns_abi = filter_by_type("function", contract_abi)
+    """
+    Given a contract ABI, return a list of TContractFunction instances.
+    """
+    fns_abi = sorted(
+        filter_abi_by_type("function", contract_abi),
+        key=lambda fn: (fn["name"], len(fn.get("inputs", []))),
+    )
     return [
         function_type.factory(
-            fn_abi["name"],
+            abi_to_signature(fn_abi),
             w3=w3,
             contract_abi=contract_abi,
             address=address,
-            function_identifier=fn_abi["name"],
+            abi_element_identifier=abi_to_signature(fn_abi),
             abi=fn_abi,
         )
         for fn_abi in fns_abi
@@ -337,6 +364,10 @@ def find_functions_by_identifier(
 def get_function_by_identifier(
     fns: Sequence[TContractFn], identifier: str
 ) -> TContractFn:
+    """
+    Check that the provided list of TContractFunction instances contains one element and
+    return it.
+    """
     if len(fns) > 1:
         raise Web3ValueError(
             f"Found multiple functions with matching {identifier}. " f"Found: {fns!r}"
@@ -346,6 +377,46 @@ def get_function_by_identifier(
     return fns[0]
 
 
+def find_events_by_identifier(
+    contract_abi: ABI,
+    w3: Union["Web3", "AsyncWeb3"],
+    address: ChecksumAddress,
+    callable_check: Callable[..., Any],
+    event_type: Type[TContractEvent],
+) -> List[TContractEvent]:
+    """
+    Given a contract ABI, return a list of TContractEvent instances.
+    """
+    event_abis = filter_abi_by_type("event", contract_abi)
+    return [
+        event_type.factory(
+            event_abi["name"],
+            w3=w3,
+            contract_abi=contract_abi,
+            address=address,
+            abi=event_abi,
+        )
+        for event_abi in event_abis
+        if callable_check(event_abi)
+    ]
+
+
+def get_event_by_identifier(
+    events: Sequence[TContractEvent], identifier: str
+) -> TContractEvent:
+    """
+    Check that the provided list of TContractEvent instances contains one element and
+    return it.
+    """
+    if len(events) > 1:
+        raise Web3ValueError(
+            f"Found multiple events with matching {identifier}. " f"Found: {events!r}"
+        )
+    elif len(events) == 0:
+        raise Web3ValueError(f"Could not find any event with matching {identifier}")
+    return events[0]
+
+
 # --- async --- #
 
 
@@ -353,7 +424,7 @@ async def async_call_contract_function(
     async_w3: "AsyncWeb3",
     address: ChecksumAddress,
     normalizers: Tuple[Callable[..., Any], ...],
-    function_identifier: FunctionIdentifier,
+    abi_element_identifier: ABIElementIdentifier,
     transaction: TxParams,
     block_id: Optional[BlockIdentifier] = None,
     contract_abi: Optional[ABI] = None,
@@ -371,9 +442,9 @@ async def async_call_contract_function(
     call_transaction = prepare_transaction(
         address,
         async_w3,
-        fn_identifier=function_identifier,
+        abi_element_identifier=abi_element_identifier,
         contract_abi=contract_abi,
-        fn_abi=fn_abi,
+        abi_callable=fn_abi,
         transaction=transaction,
         fn_args=args,
         fn_kwargs=kwargs,
@@ -387,18 +458,28 @@ async def async_call_contract_function(
     )
 
     if fn_abi is None:
-        fn_abi = find_matching_fn_abi(
-            contract_abi, async_w3.codec, function_identifier, args, kwargs
+        fn_abi = cast(
+            ABIFunction,
+            get_abi_element(
+                contract_abi,
+                abi_element_identifier,
+                *args,
+                abi_codec=async_w3.codec,
+                **kwargs,
+            ),
         )
 
-    output_types = get_abi_output_types(fn_abi)
+    # get the output types, which only exist for function types
+    output_types = []
+    if fn_abi["type"] == "function":
+        output_types = get_abi_output_types(fn_abi)
 
     if async_w3.provider._is_batching:
         contract_call_return_data_formatter = format_contract_call_return_data_curried(
             async_w3,
             decode_tuples,
             fn_abi,
-            function_identifier,
+            abi_element_identifier,
             normalizers,
             output_types,
         )
@@ -410,8 +491,10 @@ async def async_call_contract_function(
                 current_request_id, contract_call_return_data_formatter
             )
         else:
-            # request_information == ((method, params), response_formatters)
-            request_information = tuple(return_data)
+            BatchingReturnData: TypeAlias = Tuple[
+                Tuple[RPCEndpoint, Any], Tuple[Any, ...]
+            ]
+            request_information = tuple(cast(BatchingReturnData, return_data))
             method_and_params = request_information[0]
 
             # append return data formatter to result formatters
@@ -446,7 +529,7 @@ async def async_call_contract_function(
             )
         else:
             msg = (
-                f"Could not decode contract function call to {function_identifier} "
+                f"Could not decode contract function call to {abi_element_identifier} "
                 f"with return data: {str(return_data)}, output_types: {output_types}"
             )
         raise BadFunctionCallOutput(msg) from e
@@ -467,7 +550,7 @@ async def async_call_contract_function(
 async def async_transact_with_contract_function(
     address: ChecksumAddress,
     async_w3: "AsyncWeb3",
-    function_name: Optional[FunctionIdentifier] = None,
+    abi_element_identifier: Optional[ABIElementIdentifier] = None,
     transaction: Optional[TxParams] = None,
     contract_abi: Optional[ABI] = None,
     fn_abi: Optional[ABIFunction] = None,
@@ -481,10 +564,10 @@ async def async_transact_with_contract_function(
     transact_transaction = prepare_transaction(
         address,
         async_w3,
-        fn_identifier=function_name,
+        abi_element_identifier=abi_element_identifier,
         contract_abi=contract_abi,
         transaction=transaction,
-        fn_abi=fn_abi,
+        abi_callable=fn_abi,
         fn_args=args,
         fn_kwargs=kwargs,
     )
@@ -496,7 +579,7 @@ async def async_transact_with_contract_function(
 async def async_estimate_gas_for_function(
     address: ChecksumAddress,
     async_w3: "AsyncWeb3",
-    fn_identifier: Optional[FunctionIdentifier] = None,
+    abi_element_identifier: Optional[ABIElementIdentifier] = None,
     transaction: Optional[TxParams] = None,
     contract_abi: Optional[ABI] = None,
     fn_abi: Optional[ABIFunction] = None,
@@ -514,9 +597,9 @@ async def async_estimate_gas_for_function(
     estimate_transaction = prepare_transaction(
         address,
         async_w3,
-        fn_identifier=fn_identifier,
+        abi_element_identifier=abi_element_identifier,
         contract_abi=contract_abi,
-        fn_abi=fn_abi,
+        abi_callable=fn_abi,
         transaction=transaction,
         fn_args=args,
         fn_kwargs=kwargs,
@@ -530,7 +613,7 @@ async def async_estimate_gas_for_function(
 async def async_build_transaction_for_function(
     address: ChecksumAddress,
     async_w3: "AsyncWeb3",
-    function_name: Optional[FunctionIdentifier] = None,
+    abi_element_identifier: Optional[ABIElementIdentifier] = None,
     transaction: Optional[TxParams] = None,
     contract_abi: Optional[ABI] = None,
     fn_abi: Optional[ABIFunction] = None,
@@ -546,9 +629,9 @@ async def async_build_transaction_for_function(
     prepared_transaction = prepare_transaction(
         address,
         async_w3,
-        fn_identifier=function_name,
+        abi_element_identifier=abi_element_identifier,
         contract_abi=contract_abi,
-        fn_abi=fn_abi,
+        abi_callable=fn_abi,
         transaction=transaction,
         fn_args=args,
         fn_kwargs=kwargs,

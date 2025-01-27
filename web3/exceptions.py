@@ -8,10 +8,6 @@ from typing import (
     Union,
 )
 
-from eth_utils import (
-    ValidationError,
-)
-
 from web3.types import (
     BlockData,
     RPCResponse,
@@ -164,7 +160,7 @@ class MismatchedABI(Web3Exception):
     """
 
 
-class ABIEventFunctionNotFound(AttributeError, MismatchedABI):
+class ABIEventNotFound(AttributeError, MismatchedABI):
     """
     Raised when an attempt is made to access an event
     that does not exist in the ABI.
@@ -178,14 +174,25 @@ class ABIFunctionNotFound(AttributeError, MismatchedABI):
     """
 
 
-class FallbackNotFound(Web3Exception):
+class ABIConstructorNotFound(Web3Exception):
     """
-    Raised when fallback function doesn't exist in contract.
+    Raised when a constructor function doesn't exist in contract.
     """
 
 
-# type ignored because subclassing ValidationError which has type Any
-class Web3ValidationError(Web3Exception, ValidationError):  # type: ignore[misc]
+class ABIFallbackNotFound(Web3Exception):
+    """
+    Raised when a fallback function doesn't exist in contract.
+    """
+
+
+class ABIReceiveNotFound(Web3Exception):
+    """
+    Raised when a receive function doesn't exist in contract.
+    """
+
+
+class Web3ValidationError(Web3Exception):
     """
     Raised when a supplied value is invalid.
     """
@@ -327,6 +334,32 @@ class TaskNotRunning(Web3Exception):
         super().__init__(message)
 
 
+class PersistentConnectionError(Web3Exception):
+    """
+    Raised when a persistent connection encounters an error.
+    """
+
+
+class ReadBufferLimitReached(PersistentConnectionError, Web3ValueError):
+    """
+    Raised when the read buffer limit is reached while reading data from a persistent
+    connection.
+    """
+
+
+class PersistentConnectionClosedOK(PersistentConnectionError):
+    """
+    Raised when a persistent connection is closed gracefully by the server.
+    """
+
+
+class SubscriptionProcessingFinished(Web3Exception):
+    """
+    Raised to alert the subscription manager that the processing of subscriptions
+    has finished.
+    """
+
+
 class Web3RPCError(Web3Exception):
     """
     Raised when a JSON-RPC response contains an error field.
@@ -355,6 +388,12 @@ class Web3RPCError(Web3Exception):
 class MethodUnavailable(Web3RPCError):
     """
     Raised when the method is not available on the node
+    """
+
+
+class RequestTimedOut(Web3RPCError):
+    """
+    Raised when a request to the node times out.
     """
 
 

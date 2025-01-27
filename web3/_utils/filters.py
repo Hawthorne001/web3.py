@@ -19,6 +19,7 @@ from eth_abi.grammar import (
     parse as parse_type_string,
 )
 from eth_typing import (
+    ABIEvent,
     ChecksumAddress,
     HexStr,
     TypeStr,
@@ -55,7 +56,6 @@ from web3.exceptions import (
     Web3ValueError,
 )
 from web3.types import (
-    ABIEvent,
     BlockIdentifier,
     FilterParams,
     LogReceipt,
@@ -90,10 +90,7 @@ def construct_event_filter_params(
             )
         topic_set = topics
 
-    if len(topic_set) == 1 and is_list_like(topic_set[0]):
-        filter_params["topics"] = topic_set[0]
-    else:
-        filter_params["topics"] = topic_set
+    filter_params["topics"] = topic_set
 
     if address and contract_address:
         if is_list_like(address):

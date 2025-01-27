@@ -10,8 +10,12 @@ from typing import (
     cast,
 )
 
-from toolz import (
+from eth_utils.toolz import (
     merge,
+)
+
+from web3.providers.persistent import (
+    PersistentConnectionProvider,
 )
 
 if TYPE_CHECKING:
@@ -26,6 +30,7 @@ if TYPE_CHECKING:
         AsyncMakeRequestFn,
         MakeRequestFn,
         RPCEndpoint,
+        RPCRequest,
         RPCResponse,
     )
 
@@ -34,6 +39,14 @@ class RequestMocker:
     """
     Context manager to mock requests made by a web3 instance. This is meant to be used
     via a ``request_mocker`` fixture defined within the appropriate context.
+
+    ************************************************************************************
+    Important: When mocking results, it's important to keep in mind the types that
+        clients return. For example, what we commonly translate to integers are returned
+        as hex strings in the RPC response and should be mocked as such for more
+        accurate testing.
+    ************************************************************************************
+
 
     Example:
     -------
@@ -93,9 +106,21 @@ class RequestMocker:
         self.mock_results = mock_results or {}
         self.mock_errors = mock_errors or {}
         self.mock_responses = mock_responses or {}
-        self._make_request: Union[
-            "AsyncMakeRequestFn", "MakeRequestFn"
-        ] = w3.provider.make_request
+        if isinstance(w3.provider, PersistentConnectionProvider):
+            self._send_request = w3.provider.send_request
+            self._recv_for_request = w3.provider.recv_for_request
+        else:
+            self._make_request: Union[
+                "AsyncMakeRequestFn", "MakeRequestFn"
+            ] = w3.provider.make_request
+
+    def _build_request_id(self) -> int:
+        request_id = (
+            next(copy.deepcopy(self.w3.provider.request_counter))
+            if hasattr(self.w3.provider, "request_counter")
+            else 1
+        )
+        return request_id
 
     def __enter__(self) -> "Self":
         # mypy error: Cannot assign to a method
@@ -105,10 +130,9 @@ class RequestMocker:
 
         return self
 
-    # define __exit__ with typing information
     def __exit__(self, exc_type: Any, exc_value: Any, traceback: Any) -> None:
         # mypy error: Cannot assign to a method
-        self.w3.provider.make_request = self._make_request  # type: ignore[method-assign]  # noqa: E501
+        self.w3.provider.make_request = self._make_request  # type: ignore[assignment]
         # reset request func cache to re-build request_func with original make_request
         self.w3.provider._request_func_cache = (None, None)
 
@@ -124,11 +148,7 @@ class RequestMocker:
         ):
             return self._make_request(method, params)
 
-        request_id = (
-            next(copy.deepcopy(self.w3.provider.request_counter))
-            if hasattr(self.w3.provider, "request_counter")
-            else 1
-        )
+        request_id = self._build_request_id()
         response_dict = {"jsonrpc": "2.0", "id": request_id}
 
         if method in self.mock_responses:
@@ -167,36 +187,36 @@ class RequestMocker:
             return mocked_response
 
     # -- async -- #
+
     async def __aenter__(self) -> "Self":
-        # mypy error: Cannot assign to a method
-        self.w3.provider.make_request = self._async_mock_request_handler  # type: ignore[method-assign]  # noqa: E501
-        # reset request func cache to re-build request_func with mocked make_request
-        self.w3.provider._request_func_cache = (None, None)
+        if not isinstance(self.w3.provider, PersistentConnectionProvider):
+            # mypy error: Cannot assign to a method
+            self.w3.provider.make_request = self._async_mock_request_handler  # type: ignore[method-assign]  # noqa: E501
+            # reset request func cache to re-build request_func w/ mocked make_request
+            self.w3.provider._request_func_cache = (None, None)
+        else:
+            self.w3.provider.send_request = self._async_mock_send_handler  # type: ignore[method-assign]  # noqa: E501
+            self.w3.provider.recv_for_request = self._async_mock_recv_handler  # type: ignore[method-assign]  # noqa: E501
+            self.w3.provider._send_func_cache = (None, None)
+            self.w3.provider._recv_func_cache = (None, None)
         return self
 
     async def __aexit__(self, exc_type: Any, exc_value: Any, traceback: Any) -> None:
-        # mypy error: Cannot assign to a method
-        self.w3.provider.make_request = self._make_request  # type: ignore[method-assign]  # noqa: E501
-        # reset request func cache to re-build request_func with original make_request
-        self.w3.provider._request_func_cache = (None, None)
+        if not isinstance(self.w3.provider, PersistentConnectionProvider):
+            # mypy error: Cannot assign to a method
+            self.w3.provider.make_request = self._make_request  # type: ignore[assignment]  # noqa: E501
+            # reset request func cache to re-build request_func w/ original make_request
+            self.w3.provider._request_func_cache = (None, None)
+        else:
+            self.w3.provider.send_request = self._send_request  # type: ignore[method-assign]  # noqa: E501
+            self.w3.provider.recv_for_request = self._recv_for_request  # type: ignore[method-assign]  # noqa: E501
+            self.w3.provider._send_func_cache = (None, None)
+            self.w3.provider._recv_func_cache = (None, None)
 
-    async def _async_mock_request_handler(
-        self, method: "RPCEndpoint", params: Any
+    async def _async_build_mock_result(
+        self, method: "RPCEndpoint", params: Any, request_id: int = None
     ) -> "RPCResponse":
-        self.w3 = cast("AsyncWeb3", self.w3)
-        self._make_request = cast("AsyncMakeRequestFn", self._make_request)
-
-        if all(
-            method not in mock_dict
-            for mock_dict in (self.mock_errors, self.mock_results, self.mock_responses)
-        ):
-            return await self._make_request(method, params)
-
-        request_id = (
-            next(copy.deepcopy(self.w3.provider.request_counter))
-            if hasattr(self.w3.provider, "request_counter")
-            else 1
-        )
+        request_id = request_id if request_id else self._build_request_id()
         response_dict = {"jsonrpc": "2.0", "id": request_id}
 
         if method in self.mock_responses:
@@ -236,6 +256,19 @@ class RequestMocker:
         else:
             raise Exception("Invariant: unreachable code path")
 
+        return mocked_result
+
+    async def _async_mock_request_handler(
+        self, method: "RPCEndpoint", params: Any
+    ) -> "RPCResponse":
+        self.w3 = cast("AsyncWeb3", self.w3)
+        self._make_request = cast("AsyncMakeRequestFn", self._make_request)
+        if all(
+            method not in mock_dict
+            for mock_dict in (self.mock_errors, self.mock_results, self.mock_responses)
+        ):
+            return await self._make_request(method, params)
+        mocked_result = await self._async_build_mock_result(method, params)
         decorator = getattr(self._make_request, "_decorator", None)
         if decorator is not None:
             # If the original make_request was decorated, we need to re-apply
@@ -248,6 +281,47 @@ class RequestMocker:
                 return mocked_result
 
             return await decorator(_coro)(self.w3.provider, method, params)
+        else:
+            return mocked_result
+
+    async def _async_mock_send_handler(
+        self, method: "RPCEndpoint", params: Any
+    ) -> "RPCRequest":
+        if all(
+            method not in mock_dict
+            for mock_dict in (self.mock_errors, self.mock_results, self.mock_responses)
+        ):
+            return await self._send_request(method, params)
+        else:
+            request_id = self._build_request_id()
+            return {"id": request_id, "method": method, "params": params}
+
+    async def _async_mock_recv_handler(
+        self, rpc_request: "RPCRequest"
+    ) -> "RPCResponse":
+        self.w3 = cast("AsyncWeb3", self.w3)
+        method = rpc_request["method"]
+        request_id = rpc_request["id"]
+        if all(
+            method not in mock_dict
+            for mock_dict in (self.mock_errors, self.mock_results, self.mock_responses)
+        ):
+            return await self._recv_for_request(request_id)
+        mocked_result = await self._async_build_mock_result(
+            method, rpc_request["params"], request_id=int(request_id)
+        )
+        decorator = getattr(self._recv_for_request, "_decorator", None)
+        if decorator is not None:
+            # If the original recv_for_request was decorated, we need to re-apply
+            # the decorator to the mocked recv_for_request. This is necessary for
+            # the request caching decorator to work properly.
+
+            async def _coro(
+                _provider: Any, _rpc_request: "RPCRequest"
+            ) -> "RPCResponse":
+                return mocked_result
+
+            return await decorator(_coro)(self.w3.provider, rpc_request)
         else:
             return mocked_result
 

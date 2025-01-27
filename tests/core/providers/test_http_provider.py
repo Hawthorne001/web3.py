@@ -1,4 +1,8 @@
 import pytest
+from unittest.mock import (
+    Mock,
+    patch,
+)
 
 from requests import (
     Session,
@@ -16,6 +20,7 @@ from web3.eth import (
 )
 from web3.exceptions import (
     ProviderConnectionError,
+    Web3RPCError,
 )
 from web3.geth import (
     Geth,
@@ -101,8 +106,8 @@ def test_user_provided_session():
     assert adapter._pool_maxsize == 20
 
 
-def test_get_request_headers():
-    provider = HTTPProvider()
+@pytest.mark.parametrize("provider", (HTTPProvider(), HTTPProvider))
+def test_get_request_headers(provider):
     headers = provider.get_request_headers()
     assert len(headers) == 2
     assert headers["Content-Type"] == "application/json"
@@ -110,3 +115,20 @@ def test_get_request_headers():
         headers["User-Agent"] == f"web3.py/{web3py_version}/"
         f"{HTTPProvider.__module__}.{HTTPProvider.__qualname__}"
     )
+
+
+@patch(
+    "web3._utils.http_session_manager.HTTPSessionManager.make_post_request",
+    new_callable=Mock,
+)
+def test_http_empty_batch_response(mock_post):
+    mock_post.return_value = (
+        b'{"jsonrpc":"2.0","id":null,"error":{"code":-32600,"message":"empty batch"}}'
+    )
+    w3 = Web3(HTTPProvider())
+    with w3.batch_requests() as batch:
+        with pytest.raises(Web3RPCError, match="empty batch"):
+            batch.execute()
+
+    # assert that even though there was an error, we have reset the batching state
+    assert not w3.provider._is_batching

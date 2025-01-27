@@ -210,7 +210,23 @@ Each Contract Factory exposes the following properties.
 Methods
 -------
 
+Method doctests use the following ABI and bytecode.
+
+.. code-block:: python
+
+    >>> bytecode = '6060604052341561000c57fe5b604051602080610acb833981016040528080519060200190919050505b620f42408114151561003b5760006000fd5b670de0b6b3a76400008102600281905550600254600060003373ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff168152602001908152602001600020819055505b505b610a27806100a46000396000f30060606040523615610097576000357c0100000000000000000000000000000000000000000000000000000000900463ffffffff16806306fdde0314610099578063095ea7b31461013257806318160ddd1461018957806323b872dd146101af578063313ce5671461022557806370a082311461025157806395d89b411461029b578063a9059cbb14610334578063dd62ed3e1461038b575bfe5b34156100a157fe5b6100a96103f4565b60405180806020018281038252838181518152602001915080519060200190808383600083146100f8575b8051825260208311156100f8576020820191506020810190506020830392506100d4565b505050905090810190601f1680156101245780820380516001836020036101000a031916815260200191505b509250505060405180910390f35b341561013a57fe5b61016f600480803573ffffffffffffffffffffffffffffffffffffffff1690602001909190803590602001909190505061042e565b604051808215151515815260200191505060405180910390f35b341561019157fe5b610199610521565b6040518082815260200191505060405180910390f35b34156101b757fe5b61020b600480803573ffffffffffffffffffffffffffffffffffffffff1690602001909190803573ffffffffffffffffffffffffffffffffffffffff16906020019091908035906020019091905050610527565b604051808215151515815260200191505060405180910390f35b341561022d57fe5b610235610791565b604051808260ff1660ff16815260200191505060405180910390f35b341561025957fe5b610285600480803573ffffffffffffffffffffffffffffffffffffffff16906020019091905050610796565b6040518082815260200191505060405180910390f35b34156102a357fe5b6102ab6107e0565b60405180806020018281038252838181518152602001915080519060200190808383600083146102fa575b8051825260208311156102fa576020820191506020810190506020830392506102d6565b505050905090810190601f1680156103265780820380516001836020036101000a031916815260200191505b509250505060405180910390f35b341561033c57fe5b610371600480803573ffffffffffffffffffffffffffffffffffffffff1690602001909190803590602001909190505061081a565b604051808215151515815260200191505060405180910390f35b341561039357fe5b6103de600480803573ffffffffffffffffffffffffffffffffffffffff1690602001909190803573ffffffffffffffffffffffffffffffffffffffff16906020019091905050610973565b6040518082815260200191505060405180910390f35b604060405190810160405280600981526020017f54657374546f6b656e000000000000000000000000000000000000000000000081525081565b600081600160003373ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff16815260200190815260200160002060008573ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff168152602001908152602001600020819055508273ffffffffffffffffffffffffffffffffffffffff163373ffffffffffffffffffffffffffffffffffffffff167f8c5be1e5ebec7d5bd14f71427d1e84f3dd0314c0f7b2291e5b200ac8c7c3b925846040518082815260200191505060405180910390a3600190505b92915050565b60025481565b600081600060008673ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff1681526020019081526020016000205410806105f1575081600160008673ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff16815260200190815260200160002060003373ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff16815260200190815260200160002054105b156105fc5760006000fd5b81600060008573ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff1681526020019081526020016000206000828254019250508190555081600060008673ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff1681526020019081526020016000206000828254039250508190555081600160008673ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff16815260200190815260200160002060003373ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff168152602001908152602001600020600082825403925050819055508273ffffffffffffffffffffffffffffffffffffffff168473ffffffffffffffffffffffffffffffffffffffff167fddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef846040518082815260200191505060405180910390a3600190505b9392505050565b601281565b6000600060008373ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff1681526020019081526020016000205490505b919050565b604060405190810160405280600481526020017f544553540000000000000000000000000000000000000000000000000000000081525081565b600081600060003373ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff1681526020019081526020016000205410156108695760006000fd5b81600060003373ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff1681526020019081526020016000206000828254039250508190555081600060008573ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff168152602001908152602001600020600082825401925050819055508273ffffffffffffffffffffffffffffffffffffffff163373ffffffffffffffffffffffffffffffffffffffff167fddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef846040518082815260200191505060405180910390a3600190505b92915050565b6000600160008473ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff16815260200190815260200160002060008373ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff1681526020019081526020016000205490505b929150505600a165627a7a723058205071371ee2a4a1be3c96e77d939cdc26161a256fdd638efc08bd33dfc65d3b850029'
+    >>> abi = '[{"constant":true,"inputs":[],"name":"name","outputs":[{"name":"","type":"string"}],"payable":false,"type":"function","stateMutability":"view"},{"constant":false,"inputs":[{"name":"_spender","type":"address"},{"name":"_value","type":"uint256"}],"name":"approve","outputs":[{"name":"","type":"bool"}],"payable":false,"type":"function","stateMutability":"nonpayable"},{"constant":true,"inputs":[],"name":"totalSupply","outputs":[{"name":"","type":"uint256"}],"payable":false,"type":"function","stateMutability":"view"},{"constant":false,"inputs":[{"name":"_from","type":"address"},{"name":"_to","type":"address"},{"name":"_value","type":"uint256"}],"name":"transferFrom","outputs":[{"name":"","type":"bool"}],"payable":false,"type":"function","stateMutability":"nonpayable"},{"constant":true,"inputs":[],"name":"decimals","outputs":[{"name":"","type":"uint8"}],"payable":false,"type":"function","stateMutability":"view"},{"constant":true,"inputs":[{"name":"_owner","type":"address"}],"name":"balanceOf","outputs":[{"name":"","type":"uint256"}],"payable":false,"type":"function","stateMutability":"view"},{"constant":true,"inputs":[],"name":"symbol","outputs":[{"name":"","type":"string"}],"payable":false,"type":"function","stateMutability":"view"},{"constant":false,"inputs":[{"name":"_to","type":"address"},{"name":"_value","type":"uint256"}],"name":"transfer","outputs":[{"name":"","type":"bool"}],"payable":false,"type":"function","stateMutability":"nonpayable"},{"constant":true,"inputs":[{"name":"_owner","type":"address"},{"name":"_spender","type":"address"}],"name":"allowance","outputs":[{"name":"","type":"uint256"}],"payable":false,"type":"function","stateMutability":"view"},{"inputs":[{"name":"_totalSupply","type":"uint256"}],"payable":false,"type":"constructor","stateMutability":"nonpayable"},{"anonymous":false,"inputs":[{"indexed":true,"name":"from","type":"address"},{"indexed":true,"name":"to","type":"address"},{"indexed":false,"name":"value","type":"uint256"}],"name":"Transfer","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"name":"owner","type":"address"},{"indexed":true,"name":"spender","type":"address"},{"indexed":false,"name":"value","type":"uint256"}],"name":"Approval","type":"event"}]'
+    >>> contract = w3.eth.contract(abi=abi, bytecode=bytecode)
+
 Each Contract Factory exposes the following methods.
+
+.. testsetup:: contractmethods
+
+    from web3 import Web3
+    w3 = Web3(Web3.EthereumTesterProvider())
+    bytecode = '6060604052341561000c57fe5b604051602080610acb833981016040528080519060200190919050505b620f42408114151561003b5760006000fd5b670de0b6b3a76400008102600281905550600254600060003373ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff168152602001908152602001600020819055505b505b610a27806100a46000396000f30060606040523615610097576000357c0100000000000000000000000000000000000000000000000000000000900463ffffffff16806306fdde0314610099578063095ea7b31461013257806318160ddd1461018957806323b872dd146101af578063313ce5671461022557806370a082311461025157806395d89b411461029b578063a9059cbb14610334578063dd62ed3e1461038b575bfe5b34156100a157fe5b6100a96103f4565b60405180806020018281038252838181518152602001915080519060200190808383600083146100f8575b8051825260208311156100f8576020820191506020810190506020830392506100d4565b505050905090810190601f1680156101245780820380516001836020036101000a031916815260200191505b509250505060405180910390f35b341561013a57fe5b61016f600480803573ffffffffffffffffffffffffffffffffffffffff1690602001909190803590602001909190505061042e565b604051808215151515815260200191505060405180910390f35b341561019157fe5b610199610521565b6040518082815260200191505060405180910390f35b34156101b757fe5b61020b600480803573ffffffffffffffffffffffffffffffffffffffff1690602001909190803573ffffffffffffffffffffffffffffffffffffffff16906020019091908035906020019091905050610527565b604051808215151515815260200191505060405180910390f35b341561022d57fe5b610235610791565b604051808260ff1660ff16815260200191505060405180910390f35b341561025957fe5b610285600480803573ffffffffffffffffffffffffffffffffffffffff16906020019091905050610796565b6040518082815260200191505060405180910390f35b34156102a357fe5b6102ab6107e0565b60405180806020018281038252838181518152602001915080519060200190808383600083146102fa575b8051825260208311156102fa576020820191506020810190506020830392506102d6565b505050905090810190601f1680156103265780820380516001836020036101000a031916815260200191505b509250505060405180910390f35b341561033c57fe5b610371600480803573ffffffffffffffffffffffffffffffffffffffff1690602001909190803590602001909190505061081a565b604051808215151515815260200191505060405180910390f35b341561039357fe5b6103de600480803573ffffffffffffffffffffffffffffffffffffffff1690602001909190803573ffffffffffffffffffffffffffffffffffffffff16906020019091905050610973565b6040518082815260200191505060405180910390f35b604060405190810160405280600981526020017f54657374546f6b656e000000000000000000000000000000000000000000000081525081565b600081600160003373ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff16815260200190815260200160002060008573ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff168152602001908152602001600020819055508273ffffffffffffffffffffffffffffffffffffffff163373ffffffffffffffffffffffffffffffffffffffff167f8c5be1e5ebec7d5bd14f71427d1e84f3dd0314c0f7b2291e5b200ac8c7c3b925846040518082815260200191505060405180910390a3600190505b92915050565b60025481565b600081600060008673ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff1681526020019081526020016000205410806105f1575081600160008673ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff16815260200190815260200160002060003373ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff16815260200190815260200160002054105b156105fc5760006000fd5b81600060008573ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff1681526020019081526020016000206000828254019250508190555081600060008673ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff1681526020019081526020016000206000828254039250508190555081600160008673ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff16815260200190815260200160002060003373ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff168152602001908152602001600020600082825403925050819055508273ffffffffffffffffffffffffffffffffffffffff168473ffffffffffffffffffffffffffffffffffffffff167fddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef846040518082815260200191505060405180910390a3600190505b9392505050565b601281565b6000600060008373ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff1681526020019081526020016000205490505b919050565b604060405190810160405280600481526020017f544553540000000000000000000000000000000000000000000000000000000081525081565b600081600060003373ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff1681526020019081526020016000205410156108695760006000fd5b81600060003373ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff1681526020019081526020016000206000828254039250508190555081600060008573ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff168152602001908152602001600020600082825401925050819055508273ffffffffffffffffffffffffffffffffffffffff163373ffffffffffffffffffffffffffffffffffffffff167fddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef846040518082815260200191505060405180910390a3600190505b92915050565b6000600160008473ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff16815260200190815260200160002060008373ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff1681526020019081526020016000205490505b929150505600a165627a7a723058205071371ee2a4a1be3c96e77d939cdc26161a256fdd638efc08bd33dfc65d3b850029'
+    abi = '[{"constant":true,"inputs":[],"name":"name","outputs":[{"name":"","type":"string"}],"payable":false,"type":"function","stateMutability":"view"},{"constant":false,"inputs":[{"name":"_spender","type":"address"},{"name":"_value","type":"uint256"}],"name":"approve","outputs":[{"name":"","type":"bool"}],"payable":false,"type":"function","stateMutability":"nonpayable"},{"constant":true,"inputs":[],"name":"totalSupply","outputs":[{"name":"","type":"uint256"}],"payable":false,"type":"function","stateMutability":"view"},{"constant":false,"inputs":[{"name":"_from","type":"address"},{"name":"_to","type":"address"},{"name":"_value","type":"uint256"}],"name":"transferFrom","outputs":[{"name":"","type":"bool"}],"payable":false,"type":"function","stateMutability":"nonpayable"},{"constant":true,"inputs":[],"name":"decimals","outputs":[{"name":"","type":"uint8"}],"payable":false,"type":"function","stateMutability":"view"},{"constant":true,"inputs":[{"name":"_owner","type":"address"}],"name":"balanceOf","outputs":[{"name":"","type":"uint256"}],"payable":false,"type":"function","stateMutability":"view"},{"constant":true,"inputs":[],"name":"symbol","outputs":[{"name":"","type":"string"}],"payable":false,"type":"function","stateMutability":"view"},{"constant":false,"inputs":[{"name":"_to","type":"address"},{"name":"_value","type":"uint256"}],"name":"transfer","outputs":[{"name":"","type":"bool"}],"payable":false,"type":"function","stateMutability":"nonpayable"},{"constant":true,"inputs":[{"name":"_owner","type":"address"},{"name":"_spender","type":"address"}],"name":"allowance","outputs":[{"name":"","type":"uint256"}],"payable":false,"type":"function","stateMutability":"view"},{"inputs":[{"name":"_totalSupply","type":"uint256"}],"payable":false,"type":"constructor","stateMutability":"nonpayable"},{"anonymous":false,"inputs":[{"indexed":true,"name":"from","type":"address"},{"indexed":true,"name":"to","type":"address"},{"indexed":false,"name":"value","type":"uint256"}],"name":"Transfer","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"name":"owner","type":"address"},{"indexed":true,"name":"spender","type":"address"},{"indexed":false,"name":"value","type":"uint256"}],"name":"Approval","type":"event"}]'
+    contract = w3.eth.contract(abi=abi, bytecode=bytecode)
 
 .. py:classmethod:: Contract.constructor(*args, **kwargs).transact(transaction=None)
 
@@ -232,12 +248,13 @@ Each Contract Factory exposes the following methods.
 
     Returns the transaction hash for the deploy transaction.
 
-    .. code-block:: python
+    .. doctest:: contractmethods
 
-        >>> deploy_txn = token_contract.constructor(web3.eth.coinbase, 12345).transact()
-        >>> txn_receipt = web3.eth.get_transaction_receipt(deploy_txn)
+        >>> deploy_txn = contract.constructor(1000000).transact({'from': w3.eth.accounts[0], 'gas': 899000, 'gasPrice': Web3.to_wei(1, 'gwei')})
+        >>> txn_receipt = w3.eth.get_transaction_receipt(deploy_txn)
         >>> txn_receipt['contractAddress']
-        '0x4c0883a69102937d6231471b5dbb6204fe5129617082792ae468d01a3f362318'
+        '0xF2E246BB76DF876Cef8b38ae84130F4F55De395b'
+
 
 .. py:classmethod:: Contract.constructor(*args, **kwargs).estimate_gas(transaction=None, block_identifier=None)
     :noindex:
@@ -257,10 +274,10 @@ Each Contract Factory exposes the following methods.
 
     Returns the gas needed to deploy the contract.
 
-    .. code-block:: python
+    .. doctest:: contractmethods
 
-        >>> token_contract.constructor(web3.eth.coinbase, 12345).estimate_gas()
-        12563
+        >>> contract.constructor(1000000).estimate_gas()
+        664971
 
 .. py:classmethod:: Contract.constructor(*args, **kwargs).build_transaction(transaction=None)
     :noindex:
@@ -275,14 +292,15 @@ Each Contract Factory exposes the following methods.
 
     Returns the transaction dictionary that you can pass to send_transaction method.
 
-    .. code-block:: python
+    .. doctest:: contractmethods
 
         >>> transaction = {
-        'gasPrice': w3.eth.gas_price,
-        'chainId': None
-        }
-        >>> contract_data = token_contract.constructor(web3.eth.coinbase, 12345).build_transaction(transaction)
-        >>> web3.eth.send_transaction(contract_data)
+        ...   'gas': 664971,
+        ...   'chainId': 131277322940537
+        ... }
+        >>> contract_data = contract.constructor(1000000).build_transaction(transaction)
+        >>> w3.eth.send_transaction(contract_data)
+        HexBytes('0x40c51804800dee88e14e69826cfe51bc5f25f61935331e8aa6d8d7771fb36350')
 
 .. _contract_create_filter:
 
@@ -296,54 +314,156 @@ Each Contract Factory exposes the following methods.
     - ``argument_filters``, optional. Expects a dictionary of argument names and values. When provided event logs are filtered for the event argument values. Event arguments can be both indexed or unindexed. Indexed values will be translated to their corresponding topic arguments. Unindexed arguments will be filtered using a regular expression.
     - ``topics`` optional, accepts the standard JSON-RPC topics argument.  See the JSON-RPC documentation for `eth_newFilter <https://github.com/ethereum/wiki/wiki/JSON-RPC#eth_newfilter>`_ more information on the ``topics`` parameters.
 
+    .. doctest:: contractmethods
+
+        >>> filter = contract.events.Transfer.create_filter(from_block='latest')
+
 .. py:classmethod:: Contract.events.your_event_name.build_filter()
 
     Creates a EventFilterBuilder instance with the event abi, and the contract address if called from a deployed contract instance.  The EventFilterBuilder provides a convenient way to construct the filter parameters with value checking against the event abi. It allows for defining multiple match values or of single values through the match_any and match_single methods.
 
-    .. code-block:: python
+    .. doctest:: contractmethods
 
-        filter_builder = myContract.events.myEvent.build_filter()
-        filter_builder.from_block = "latest"
-        filter_builder.args.clientID.match_any(1, 2, 3, 4)
-        filter_builder.args.region.match_single("UK")
-        filter_instance = filter_builder.deploy()
+        >>> filter_builder = contract.events.Transfer.build_filter()
+        >>> filter_builder.from_block = "latest"
+        >>> filter_builder.args['from'].match_any(w3.eth.accounts[0])
+        >>> filter_builder.args['to'].match_single(w3.eth.accounts[1])
+        >>> filter_builder.args['value'].match_single(10000)
+        >>> filter_instance = filter_builder.deploy(w3)
 
     The ``deploy`` method returns a :py:class:`web3.utils.filters.LogFilter` instance from the filter parameters generated by the filter builder. Defining multiple match values for array arguments can be accomplished easily with the filter builder:
 
-    .. code-block:: python
+    .. doctest:: contractmethods
 
-        filter_builder = myContract.events.myEvent.build_filter()
-        filter_builder.args.clientGroups.match_any((1, 3, 5,), (2, 3, 5), (1, 2, 3))
+        >>> filter_builder = contract.events.Transfer.build_filter()
+        >>> filter_builder.args['to'].match_any(w3.eth.accounts[0], w3.eth.accounts[1])
 
     The filter builder blocks already defined filter parameters from being changed.
 
-    .. code-block:: python
+    .. doctest:: contractmethods
 
-        filter_builder = my_contract.events.myEvent.build_filter()
-        filter_builder.from_block = "latest"
-        filter_builder.from_block = 0  # raises a ValueError
+        >>> filter_builder = contract.events.Transfer.build_filter()
+        >>> filter_builder.from_block = "latest"
+        >>> filter_builder.from_block = 0
+        Traceback (most recent call last):
+        web3.exceptions.Web3ValueError: from_block is already set to 'latest'. Resetting filter parameters is not permitted
 
-.. py:classmethod:: Contract.encode_abi(fn_name, args=None, kwargs=None, data=None)
+.. py:classmethod:: Contract.encode_abi(abi_element_identifier, args=None, kwargs=None, data=None)
 
     Encodes the arguments using the Ethereum ABI for the contract function that
-    matches the given ``fn_name`` and arguments ``args``. The ``data`` parameter
+    matches the given ``abi_element_identifier`` and arguments ``args``. The ``data`` parameter
     defaults to the function selector.
 
-    .. code-block:: python
+    .. doctest:: contractmethods
 
-      >>> contract.encode_abi(fn_name="register", args=["rainbows", 10])
-      "0xea87152b0000000000000000000000000000000000000000000000000000000000000040000000000000000000000000000000000000000000000000000000000000000a00000000000000000000000000000000000000000000000000000000000000087261696e626f7773000000000000000000000000000000000000000000000000"
+      >>> contract.encode_abi("approve", args=[w3.eth.accounts[0], 10])
+      '0x095ea7b30000000000000000000000007e5f4552091a69125d5dfcb7b8c2659029395bdf000000000000000000000000000000000000000000000000000000000000000a'
 
+.. py:classmethod:: Contract.all_events()
+
+    Returns a list of all the events present in a Contract where every event is
+    an instance of :py:class:`ContractEvent`.
+
+    .. doctest:: contractmethods
+
+        >>> contract.all_events()
+        [<Event Transfer(address,address,uint256)>, <Event Approval(address,address,uint256)>]
+
+
+.. py:classmethod:: Contract.get_event_by_signature(signature)
+
+    Searches for a distinct event with matching signature. Returns an instance of
+    :py:class:`ContractEvent` upon finding a match. Raises ``Web3ValueError`` if no
+    match is found.
+
+    .. doctest:: contractmethods
+
+        >>> contract.get_event_by_signature('Transfer(address,address,uint256)')
+        <Event Transfer(address,address,uint256)>
+
+
+.. py:classmethod:: Contract.find_events_by_name(name)
+
+    Searches for all events matching the provided name. Returns a list of matching
+    events where every event is an instance of :py:class:`ContractEvent`. Returns an
+    empty list when no match is found.
+
+    .. doctest:: contractmethods
+
+        >>> contract.find_events_by_name('Transfer')
+        [<Event Transfer(address,address,uint256)>]
+
+
+.. py:classmethod:: Contract.get_event_by_name(name)
+
+    Searches for a distinct event matching the name. Returns an instance of
+    :py:class:`ContractEvent` upon finding a match. Raises ``Web3ValueError`` if no
+    match is found or if multiple matches are found.
+
+    .. doctest:: contractmethods
+
+        >>> contract.get_event_by_name('Approval')
+        <Event Approval(address,address,uint256)>
+
+.. py:classmethod:: Contract.find_events_by_selector(selector)
+
+    Searches for all events matching the provided selector. Returns a list of matching
+    events where every event is an instance of :py:class:`ContractEvent`. Returns an
+    empty list when no match is found.
+
+    .. doctest:: contractmethods
+
+        >>> contract.find_events_by_selector('0x8c5be1e5ebec7d5bd14f71427d1e84f3dd0314c0f7b2291e5b200ac8c7c3b925')
+        [<Event Approval(address,address,uint256)>]
+
+.. py:classmethod:: Contract.get_event_by_selector(selector)
+
+    Searches for a distinct event with matching selector.
+    The selector can be a hexadecimal string, bytes or int.
+    Returns an instance of :py:class:`ContractEvent` upon finding a match.
+    Raises ``Web3ValueError`` if no match is found.
+
+    .. doctest:: contractmethods
+
+        >>> contract.get_event_by_selector('0x8c5be1e5ebec7d5bd14f71427d1e84f3dd0314c0f7b2291e5b200ac8c7c3b925')
+        <Event Approval(address,address,uint256)>
+        >>> contract.get_event_by_selector(b'\x8c[\xe1\xe5\xeb\xec}[\xd1OqB}\x1e\x84\xf3\xdd\x03\x14\xc0\xf7\xb2)\x1e[ \n\xc8\xc7\xc3\xb9%')
+        <Event Approval(address,address,uint256)>
+        >>> contract.get_event_by_selector(0x8c5be1e5ebec7d5bd14f71427d1e84f3dd0314c0f7b2291e5b200ac8c7c3b925)
+        <Event Approval(address,address,uint256)>
+
+.. py:classmethod:: Contract.find_events_by_topic(topic)
+
+    Searches for all events matching the provided topic. Returns a list of matching
+    events where every event is an instance of :py:class:`ContractEvent`. Returns an
+    empty list when no match is found.
+
+    .. doctest:: contractmethods
+
+        >>> contract.find_events_by_topic('0x8c5be1e5ebec7d5bd14f71427d1e84f3dd0314c0f7b2291e5b200ac8c7c3b925')
+        [<Event Approval(address,address,uint256)>]
+
+.. py:classmethod:: Contract.get_event_by_topic(topic)
+
+    Searches for a distinct event with matching topic.
+    The topic is a hexadecimal string.
+    Returns an instance of :py:class:`ContractEvent` upon finding a match.
+    Raises ``Web3ValueError`` if no match is found.
+
+    .. doctest:: contractmethods
+
+        >>> contract.get_event_by_topic('0x8c5be1e5ebec7d5bd14f71427d1e84f3dd0314c0f7b2291e5b200ac8c7c3b925')
+        <Event Approval(address,address,uint256)>
 
 .. py:classmethod:: Contract.all_functions()
 
     Returns a list of all the functions present in a Contract where every function is
     an instance of :py:class:`ContractFunction`.
 
-    .. code-block:: python
+    .. doctest:: contractmethods
 
         >>> contract.all_functions()
-        [<Function identity(uint256,bool)>, <Function identity(int256,bool)>]
+        [<Function allowance(address,address)>, <Function approve(address,uint256)>, <Function balanceOf(address)>, <Function decimals()>, <Function name()>, <Function symbol()>, <Function totalSupply()>, <Function transfer(address,uint256)>, <Function transferFrom(address,address,uint256)>]
 
 
 .. py:classmethod:: Contract.get_function_by_signature(signature)
@@ -352,22 +472,22 @@ Each Contract Factory exposes the following methods.
     :py:class:`ContractFunction` upon finding a match. Raises ``Web3ValueError`` if no
     match is found.
 
-    .. code-block:: python
+    .. doctest:: contractmethods
 
-        >>> contract.get_function_by_signature('identity(uint256,bool)')
-        <Function identity(uint256,bool)>
+        >>> contract.get_function_by_signature('approve(address,uint256)')
+        <Function approve(address,uint256)>
 
 
 .. py:classmethod:: Contract.find_functions_by_name(name)
 
-    Searches for all function with matching name. Returns a list of matching functions
+    Searches for all functions matching the name. Returns a list of matching functions
     where every function is an instance of :py:class:`ContractFunction`. Returns an empty
     list when no match is found.
 
-    .. code-block:: python
+    .. doctest:: contractmethods
 
-        >>> contract.find_functions_by_name('identity')
-        [<Function identity(uint256,bool)>, <Function identity(int256,bool)>]
+        >>> contract.find_functions_by_name('transferFrom')
+        [<Function transferFrom(address,address,uint256)>]
 
 
 .. py:classmethod:: Contract.get_function_by_name(name)
@@ -376,10 +496,10 @@ Each Contract Factory exposes the following methods.
     :py:class:`ContractFunction` upon finding a match. Raises ``Web3ValueError`` if no
     match is found or if multiple matches are found.
 
-    .. code-block:: python
+    .. doctest:: contractmethods
 
-        >>> contract.get_function_by_name('unique_name')
-        <Function unique_name(uint256)>
+        >>> contract.get_function_by_name('decimals')
+        <Function decimals()>
 
 
 .. py:classmethod:: Contract.get_function_by_selector(selector)
@@ -389,14 +509,14 @@ Each Contract Factory exposes the following methods.
     Returns an instance of :py:class:`ContractFunction` upon finding a match.
     Raises ``Web3ValueError`` if no match is found.
 
-    .. code-block:: python
+    .. doctest:: contractmethods
 
-        >>> contract.get_function_by_selector('0xac37eebb')
-        <Function identity(uint256)'>
-        >>> contract.get_function_by_selector(b'\xac7\xee\xbb')
-        <Function identity(uint256)'>
-        >>> contract.get_function_by_selector(0xac37eebb)
-        <Function identity(uint256)'>
+        >>> contract.get_function_by_selector('0xdd62ed3e')
+        <Function allowance(address,address)>
+        >>> contract.get_function_by_selector(b'\xddb\xed>')
+        <Function allowance(address,address)>
+        >>> contract.get_function_by_selector(0xdd62ed3e)
+        <Function allowance(address,address)>
 
 
 .. py:classmethod:: Contract.find_functions_by_args(*args)
@@ -405,10 +525,10 @@ Each Contract Factory exposes the following methods.
     where every function is an instance of :py:class:`ContractFunction`. Returns an empty
     list when no match is found.
 
-    .. code-block:: python
+    .. doctest:: contractmethods
 
-        >>> contract.find_functions_by_args(1, True)
-        [<Function identity(uint256,bool)>, <Function identity(int256,bool)>]
+        >>> contract.find_functions_by_args(w3.eth.accounts[0], 10000)
+        [<Function approve(address,uint256)>, <Function transfer(address,uint256)>]
 
 
 .. py:classmethod:: Contract.get_function_by_args(*args)
@@ -417,10 +537,10 @@ Each Contract Factory exposes the following methods.
     :py:class:`ContractFunction` upon finding a match. Raises ``ValueError`` if no
     match is found or if multiple matches are found.
 
-    .. code-block:: python
+    .. doctest:: contractmethods
 
-        >>> contract.get_function_by_args(1)
-        <Function unique_func_with_args(uint256)>
+        >>> contract.get_function_by_args(w3.eth.accounts[0], w3.eth.accounts[1], 10000)
+        <Function transferFrom(address,address,uint256)>
 
 
 .. note::
@@ -469,7 +589,6 @@ size, web3 will invalidate the value. For example, if an abi specifies a type of
      - Needs to have exactly 4 bytes
    * - ``'0x6162636464'``
      - Needs to have exactly 4 bytes
-
 
 However, you may want to be less strict with acceptable values for bytes types.
 This may prove useful if you trust that values coming through are what they are
@@ -625,7 +744,7 @@ Taking the following contract code as an example:
     >>> arrays_contract.functions.setBytes2Value([b'b']).transact()
     Traceback (most recent call last):
        ...
-    web3.exceptions.Web3ValidationError:
+    web3.exceptions.MismatchedABI:
     Could not identify the intended function with name
     >>> # check value is still b'aa'
     >>> arrays_contract.functions.getBytes2Value().call()
@@ -650,15 +769,13 @@ Taking the following contract code as an example:
     >>> arrays_contract.functions.setBytes2Value([b'a']).transact()
     Traceback (most recent call last):
        ...
-    web3.exceptions.Web3ValidationError:
+    web3.exceptions.MismatchedABI:
     Could not identify the intended function with name
 
 .. _contract-functions:
 
 Contract Functions
 ------------------
-
-.. py:class:: ContractFunction
 
 The named functions exposed through the :py:attr:`Contract.functions` property are
 of the ContractFunction type. This class is not to be used directly,
@@ -678,6 +795,79 @@ If you have the function name in a variable, you might prefer this alternative:
         func_to_call = 'multiply7'
         contract_func = myContract.functions[func_to_call]
         twentyone = contract_func(3).call()
+
+You can also interact with contract functions without parentheses if the function doesn't
+take any arguments. For example:
+
+    .. code-block:: python
+
+        >>> myContract.functions.return13.call()
+        13
+        >>> myContract.functions.return13().call()
+        13
+
+In cases where functions are overloaded and use arguments of similar types, a function
+may resolve to an undesired function when using the method syntax. For example, given
+two functions with the same name that take a single argument of differing types of
+``bytes`` and ``bytes32``. When a reference to :meth:`contract.functions.setBytes(b'1')`
+is used, the function will resolve as the one that takes ``bytes``. If a value is passed
+that was meant to be 32 bytes but the given argument was off by one, the function
+reference will still use the one that takes ``bytes``.
+
+When in doubt, use explicit function references to the signature. Use bracket notation
+(:meth:`contract.functions["setBytes(bytes32)"](b'')`) or the contract API
+`contract.get_function_by_signature("setBytes(bytes32)")` to retrieve the desired
+function. This will ensure an exception is raised if the argument is not strictly
+32 bytes in length.
+
+.. py:class:: ContractFunction
+
+Attributes
+~~~~~~~~~~
+
+The :py:class:`ContractFunction` class provides attributes for each function. Access the function attributes through `Contract.functions.myMethod`.
+
+.. py:attribute:: ContractFunction.myMethod(*args, **kwargs).abi_element_identifier
+
+    The signature of the function assigned to the class ``__name__`` during initialization.
+    Fallback and Receive functions will be assigned as classes :py:class:`FallbackFn` or
+    :py:class:`RecieveFn` respectively.
+
+.. py:attribute:: ContractFunction.myMethod(*args, **kwargs).name
+
+    A string representing the function, receive or fallback name.
+
+    Use :py:attr:`ContractFunction.signature` when the function arguments are needed.
+
+    This is an alias of :py:attr:`ContractFunction.fn_name`.
+
+.. py:attribute:: ContractFunction.myMethod(*args, **kwargs).signature
+
+    A string representing the function, receive or fallback signature.
+
+.. py:attribute:: ContractFunction.myMethod(*args, **kwargs).selector
+
+    A HexStr encoded from the first four bytes of the function signature.
+
+.. py:attribute:: ContractFunction.myMethod(*args, **kwargs).abi
+
+    The function ABI with the type, name, inputs and outputs.
+
+.. py:attribute:: ContractFunction.myMethod(*args, **kwargs).arguments
+
+    A tuple of all function inputs, normalized so that `kwargs` themselves are
+    flattened into a tuple as returned by :py:meth:`eth_utils.abi.get_normalized_abi_inputs`.
+
+.. py:attribute:: ContractFunction.myMethod(*args, **kwargs).argument_names
+
+    The function input names.
+
+.. py:attribute:: ContractFunction.myMethod(*args, **kwargs).argument_types
+
+    The function input types.
+
+Methods
+~~~~~~~
 
 :py:class:`ContractFunction` provides methods to interact with contract functions.
 Positional and keyword arguments supplied to the contract function subclass
@@ -716,10 +906,6 @@ If there is an error message with the error, web3.py attempts to parse the
 message that comes back and return it to the user as the error string.
 As of v6.3.0, the raw data is also returned and
 can be accessed via the ``data`` attribute on ``ContractLogicError``.
-
-
-Methods
-~~~~~~~
 
 .. py:method:: ContractFunction.transact(transaction)
 
@@ -777,8 +963,8 @@ Methods
 
         >>> my_contract.functions.multiply7(3).call()
         21
-        >>> token_contract.functions.myBalance().call({'from': web3.eth.coinbase})
-        12345  # the token balance for `web3.eth.coinbase`
+        >>> token_contract.functions.myBalance().call({'from': web3.eth.accounts[0]})
+        12345  # the token balance for `web3.eth.accounts[0]`
         >>> token_contract.functions.myBalance().call({'from': web3.eth.accounts[1]})
         54321  # the token balance for the account `web3.eth.accounts[1]`
 
@@ -910,12 +1096,10 @@ Fallback Function
 
     Builds a transaction dictionary based on the contract fallback function call.
 
-Events
-------
+Contract Events
+---------------
 
-.. py:class:: ContractEvents
-
-The named events exposed through the :py:attr:`Contract.events` property are of the ContractEvents type. This class is not to be used directly, but instead through :py:attr:`Contract.events`.
+The named events exposed through the :py:attr:`Contract.events` property are of the ContractEvent type. This class is not to be used directly, but instead through :py:attr:`Contract.events`.
 
 For example:
 
@@ -924,13 +1108,55 @@ For example:
         myContract = web3.eth.contract(address=contract_address, abi=contract_abi)
         tx_hash = myContract.functions.myFunction().transact()
         receipt = web3.eth.get_transaction_receipt(tx_hash)
-        myContract.events.myEvent().process_receipt(receipt)
+        myContract.events.MyEvent().process_receipt(receipt)
+
+.. py:class:: ContractEvent
+
+Attributes
+~~~~~~~~~~
+
+The :py:class:`ContractEvent` class provides attributes for each event. Access the event attributes through `Contract.events.MyEvent`.
+
+.. py:attribute:: ContractEvent.MyEvent(*args, **kwargs).abi_element_identifier
+
+    The signature of the event assigned to the class ``__name__`` during initialization.
+
+.. py:attribute:: ContractEvent.MyEvent(*args, **kwargs).name
+
+    A string representing the event, receive or fallback name.
+
+    Use :py:attr:`ContractEvent.MyEvent(*args, **kwargs).signature` when the event arguments are needed.
+
+    This is an alias of :py:attr:`ContractEvent.MyEvent(*args, **kwargs).event_name`.
+
+.. py:attribute:: ContractEvent.MyEvent(*args, **kwargs).signature
+
+    A string representing the event signature.
+
+.. py:attribute:: ContractEvent.MyEvent(*args, **kwargs).abi
+
+    The event ABI with the type, name, inputs.
+
+.. py:attribute:: ContractEvent.MyEvent(*args, **kwargs).argument_names
+
+    The event input names.
+
+.. py:attribute:: ContractEvent.MyEvent(*args, **kwargs).argument_types
+
+    The event input types.
+
+.. py:attribute:: ContractEvent.MyEvent(*args, **kwargs).topic
+
+    The event topic represented by a hex encoded string from the keccak signature.
+
+Methods
+~~~~~~~
 
 :py:class:`ContractEvent` provides methods to interact with contract events. Positional and keyword arguments supplied to the contract event subclass will be used to find the contract event by signature.
 
 .. _contract_get_logs:
 
-.. py:method:: ContractEvents.myEvent(*args, **kwargs).get_logs(from_block=None, to_block="latest", block_hash=None, argument_filters={})
+.. py:method:: ContractEvent.get_logs(from_block=None, to_block="latest", block_hash=None, argument_filters={})
    :noindex:
 
    Fetches all logs for a given event within the specified block range or block hash.
@@ -950,9 +1176,9 @@ For example:
 
         my_contract = web3.eth.contract(address=contract_address, abi=contract_abi)
 
-        # get ``myEvent`` logs from block 1337 to block 2337 where the value for the
+        # get ``MyEvent`` logs from block 1337 to block 2337 where the value for the
         # event argument "eventArg1" is either 1, 2, or 3
-        my_contract.events.myEvent().get_logs(
+        my_contract.events.MyEvent().get_logs(
             argument_filters={"eventArg1": [1, 2, 3]},
             from_block=1337,
             to_block=2337,
@@ -960,19 +1186,19 @@ For example:
 
 .. _process_receipt:
 
-.. py:method:: ContractEvents.myEvent(*args, **kwargs).process_receipt(transaction_receipt, errors=WARN)
+.. py:method:: ContractEvent.process_receipt(transaction_receipt, errors=WARN)
    :noindex:
 
    Extracts the pertinent logs from a transaction receipt.
 
-   If there are no errors, ``process_receipt`` returns a tuple of :ref:`Event Log Objects <event-log-object>`, emitted from the event (e.g. ``myEvent``),
+   If there are no errors, ``process_receipt`` returns a tuple of :ref:`Event Log Objects <event-log-object>`, emitted from the event (e.g. ``MyEvent``),
    with decoded output.
 
    .. code-block:: python
 
        >>> tx_hash = contract.functions.myFunction(12345).transact({'to':contract_address})
        >>> tx_receipt = w3.eth.get_transaction_receipt(tx_hash)
-       >>> rich_logs = contract.events.myEvent().process_receipt(tx_receipt)
+       >>> rich_logs = contract.events.MyEvent().process_receipt(tx_receipt)
        >>> rich_logs[0]['args']
        {'myArg': 12345}
 
@@ -989,12 +1215,12 @@ For example:
 
        >>> tx_hash = contract.functions.myFunction(12345).transact({'to':contract_address})
        >>> tx_receipt = w3.eth.get_transaction_receipt(tx_hash)
-       >>> processed_logs = contract.events.myEvent().process_receipt(tx_receipt)
+       >>> processed_logs = contract.events.MyEvent().process_receipt(tx_receipt)
        >>> processed_logs
        (
           AttributeDict({
               'args': AttributeDict({}),
-              'event': 'myEvent',
+              'event': 'MyEvent',
               'logIndex': 0,
               'transactionIndex': 0,
               'transactionHash': HexBytes('0xfb95ccb6ab39e19821fb339dee33e7afe2545527725b61c64490a5613f8d11fa'),
@@ -1007,7 +1233,7 @@ For example:
 
        # Or, if there were errors encountered during processing:
        >>> from web3.logs import STRICT, IGNORE, DISCARD, WARN
-       >>> processed_logs = contract.events.myEvent().process_receipt(tx_receipt, errors=IGNORE)
+       >>> processed_logs = contract.events.MyEvent().process_receipt(tx_receipt, errors=IGNORE)
        >>> processed_logs
        (
            AttributeDict({
@@ -1025,11 +1251,11 @@ For example:
                'errors': LogTopicError('Expected 1 log topics.  Got 0')})
           })
        )
-       >>> processed_logs = contract.events.myEvent().process_receipt(tx_receipt, errors=DISCARD)
+       >>> processed_logs = contract.events.MyEvent().process_receipt(tx_receipt, errors=DISCARD)
        >>> assert processed_logs == ()
        True
 
-.. py:method:: ContractEvents.myEvent(*args, **kwargs).process_log(log)
+.. py:method:: ContractEvent.process_log(log)
 
    Similar to process_receipt_, but only processes one log at a time, instead of a whole transaction receipt.
    Will return a single :ref:`Event Log Object <event-log-object>` if there are no errors encountered during processing. If an error is encountered during processing, it will be raised.
@@ -1039,11 +1265,11 @@ For example:
        >>> tx_hash = contract.functions.myFunction(12345).transact({'to':contract_address})
        >>> tx_receipt = w3.eth.get_transaction_receipt(tx_hash)
        >>> log_to_process = tx_receipt['logs'][0]
-       >>> processed_log = contract.events.myEvent().process_log(log_to_process)
+       >>> processed_log = contract.events.MyEvent().process_log(log_to_process)
        >>> processed_log
        AttributeDict({
            'args': AttributeDict({}),
-           'event': 'myEvent',
+           'event': 'MyEvent',
            'logIndex': 0,
            'transactionIndex': 0,
            'transactionHash': HexBytes('0xfb95ccb6ab39e19821fb339dee33e7afe2545527725b61c64490a5613f8d11fa'),
@@ -1440,6 +1666,23 @@ You can interact with the web3.py contract API as follows:
 Invoke Ambiguous Contract Functions
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+Calling overloaded functions can be done as you would expect. Passing arguments will
+disambiguate which function you want to call.
+
+For example, if you have a contract with two functions with the name ``identity`` that
+accept different types of arguments, you can call them like this:
+
+.. code-block:: python
+
+    >>> ambiguous_contract = w3.eth.contract(address=..., abi=...)
+    >>> ambiguous_contract.functions.identity(1, True).call()
+    1
+    >>> ambiguous_contract.functions.identity("one", 1, True).call()
+    1
+
+If there is a need to first retrieve the function, you can use the contract instance's
+``get_function_by_signature`` method to get the function you want to call.
+
 Below is an example of a contract that has multiple functions of the same name,
 and the arguments are ambiguous. You can use the :meth:`Contract.get_function_by_signature`
 method to reference the intended function and call it with the correct arguments.
@@ -1458,7 +1701,6 @@ method to reference the intended function and call it with the correct arguments
         }
         """
         # fast forward all the steps of compiling and deploying the contract.
-        >>> ambiguous_contract.functions.identity(1, True) # raises Web3ValidationError
 
         >>> identity_func = ambiguous_contract.get_function_by_signature('identity(uint256,bool)')
         >>> identity_func(1, True)
@@ -1511,13 +1753,13 @@ Contract Unit Tests in Python
 Here is an example of how one can use the `pytest`_ framework in python, web3.py,
 eth-tester, and PyEVM to perform unit tests entirely in python without any
 additional need for a full featured ethereum node/client. To install needed
-dependencies you can use the pinned extra for eth_tester in web3 and pytest:
+dependencies you can use the pinned extra for testing:
 
 .. _pytest: https://docs.pytest.org/en/latest/
 
 .. code-block:: bash
 
-    $ pip install web3[tester] pytest
+    $ pip install web3[test] pytest
 
 Once you have an environment set up for testing, you can then write your tests
 like so:

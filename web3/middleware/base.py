@@ -40,6 +40,14 @@ class Web3Middleware:
     def __init__(self, w3: Union["AsyncWeb3", "Web3"]) -> None:
         self._w3 = w3
 
+    def __hash__(self) -> int:
+        return hash(f"{self.__class__.__name__}({str(self.__dict__)})")
+
+    def __eq__(self, other: Any) -> bool:
+        if not isinstance(other, Web3Middleware):
+            return False
+        return self.__hash__() == other.__hash__()
+
     # -- sync -- #
 
     def wrap_make_request(self, make_request: "MakeRequestFn") -> "MakeRequestFn":
@@ -54,15 +62,19 @@ class Web3Middleware:
     ) -> "MakeBatchRequestFn":
         def middleware(
             requests_info: List[Tuple["RPCEndpoint", Any]]
-        ) -> List["RPCResponse"]:
+        ) -> Union[List["RPCResponse"], "RPCResponse"]:
             req_processed = [
                 self.request_processor(method, params)
                 for (method, params) in requests_info
             ]
-            responses = make_batch_request(req_processed)
+            response = make_batch_request(req_processed)
+            if not isinstance(response, list):
+                # RPC errors return only one response with the error object
+                return response
+
             methods, _params = zip(*req_processed)
             formatted_responses = [
-                self.response_processor(m, r) for m, r in zip(methods, responses)
+                self.response_processor(m, r) for m, r in zip(methods, response)
             ]
             return formatted_responses
 
@@ -95,16 +107,20 @@ class Web3Middleware:
     ) -> "AsyncMakeBatchRequestFn":
         async def middleware(
             requests_info: List[Tuple["RPCEndpoint", Any]]
-        ) -> List["RPCResponse"]:
+        ) -> Union[List["RPCResponse"], "RPCResponse"]:
             req_processed = [
                 await self.async_request_processor(method, params)
                 for (method, params) in requests_info
             ]
-            responses = await make_batch_request(req_processed)
+            response = await make_batch_request(req_processed)
+            if not isinstance(response, list):
+                # RPC errors return only one response with the error object
+                return response
+
             methods, _params = zip(*req_processed)
             formatted_responses = [
                 await self.async_response_processor(m, r)
-                for m, r in zip(methods, responses)
+                for m, r in zip(methods, response)
             ]
             return formatted_responses
 

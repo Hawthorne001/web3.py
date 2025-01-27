@@ -1,5 +1,8 @@
 import pytest
 
+from aiohttp import (
+    ClientTimeout,
+)
 import pytest_asyncio
 
 from tests.utils import (
@@ -18,10 +21,12 @@ from web3.providers.rpc import (
 
 from .common import (
     GoEthereumAdminModuleTest,
+    GoEthereumAsyncDebugModuleTest,
     GoEthereumAsyncEthModuleTest,
     GoEthereumAsyncNetModuleTest,
     GoEthereumAsyncTxPoolModuleTest,
     GoEthereumAsyncWeb3ModuleTest,
+    GoEthereumDebugModuleTest,
     GoEthereumEthModuleTest,
     GoEthereumNetModuleTest,
     GoEthereumTxPoolModuleTest,
@@ -51,7 +56,7 @@ def _geth_command_arguments(rpc_port, base_geth_command_arguments, geth_version)
             "--http.port",
             rpc_port,
             "--http.api",
-            "admin,eth,net,web3,txpool",
+            "admin,debug,eth,net,web3,txpool",
             "--ipcdisable",
         )
     else:
@@ -68,7 +73,7 @@ def geth_command_arguments(rpc_port, base_geth_command_arguments, get_geth_versi
 @pytest.fixture(scope="module")
 def w3(geth_process, endpoint_uri):
     wait_for_http(endpoint_uri)
-    return Web3(Web3.HTTPProvider(endpoint_uri))
+    return Web3(Web3.HTTPProvider(endpoint_uri, request_kwargs={"timeout": 10}))
 
 
 class TestGoEthereumWeb3ModuleTest(GoEthereumWeb3ModuleTest):
@@ -95,6 +100,10 @@ class TestGoEthereumAdminModuleTest(GoEthereumAdminModuleTest):
         super().test_admin_start_stop_ws(w3)
 
 
+class TestGoEthereumDebugModuleTest(GoEthereumDebugModuleTest):
+    pass
+
+
 class TestGoEthereumEthModuleTest(GoEthereumEthModuleTest):
     pass
 
@@ -113,7 +122,9 @@ class TestGoEthereumTxPoolModuleTest(GoEthereumTxPoolModuleTest):
 @pytest_asyncio.fixture(scope="module")
 async def async_w3(geth_process, endpoint_uri):
     await wait_for_aiohttp(endpoint_uri)
-    _w3 = AsyncWeb3(AsyncHTTPProvider(endpoint_uri))
+    _w3 = AsyncWeb3(
+        AsyncHTTPProvider(endpoint_uri, request_kwargs={"timeout": ClientTimeout(10)})
+    )
     return _w3
 
 
@@ -144,12 +155,54 @@ class TestGoEthereumAsyncAdminModuleTest(GoEthereumAsyncAdminModuleTest):
         await super().test_admin_start_stop_ws(async_w3)
 
 
+class TestGoEthereumAsyncDebugModuleTest(GoEthereumAsyncDebugModuleTest):
+    pass
+
+
 class TestGoEthereumAsyncNetModuleTest(GoEthereumAsyncNetModuleTest):
     pass
 
 
 class TestGoEthereumAsyncEthModuleTest(GoEthereumAsyncEthModuleTest):
-    pass
+    @pytest.mark.asyncio
+    async def test_async_http_provider_disconnects_gracefully(
+        self, async_w3, endpoint_uri
+    ) -> None:
+        w3_1 = async_w3
+
+        w3_2 = AsyncWeb3(AsyncHTTPProvider(endpoint_uri))
+        assert w3_1 != w3_2
+
+        await w3_1.eth.get_block("latest")
+        await w3_2.eth.get_block("latest")
+
+        w3_1_session_cache = w3_1.provider._request_session_manager.session_cache
+        w3_2_session_cache = w3_2.provider._request_session_manager.session_cache
+
+        for _, session in w3_1_session_cache.items():
+            assert not session.closed
+        for _, session in w3_2_session_cache.items():
+            assert not session.closed
+        assert w3_1_session_cache != w3_2_session_cache
+
+        await w3_1.provider.disconnect()
+        await w3_2.provider.disconnect()
+
+        assert len(w3_1_session_cache) == 0
+        assert len(w3_2_session_cache) == 0
+
+    @pytest.mark.asyncio
+    async def test_async_http_provider_reuses_cached_session(self, async_w3) -> None:
+        await async_w3.eth.get_block("latest")
+        session_cache = async_w3.provider._request_session_manager.session_cache
+        assert len(session_cache) == 1
+        session = list(session_cache._data.values())[0]
+
+        await async_w3.eth.get_block("latest")
+        assert len(session_cache) == 1
+        assert session == list(session_cache._data.values())[0]
+        await async_w3.provider.disconnect()
+        assert len(session_cache) == 0
 
 
 class TestGoEthereumAsyncTxPoolModuleTest(GoEthereumAsyncTxPoolModuleTest):

@@ -1,7 +1,4 @@
 import asyncio
-from copy import (
-    copy,
-)
 import sys
 from typing import (
     TYPE_CHECKING,
@@ -9,6 +6,7 @@ from typing import (
     Callable,
     Dict,
     Generic,
+    List,
     Optional,
     Tuple,
     TypeVar,
@@ -27,11 +25,16 @@ from web3._utils.caching import (
     generate_cache_key,
 )
 from web3.exceptions import (
+    SubscriptionProcessingFinished,
     TaskNotRunning,
     Web3ValueError,
 )
+from web3.providers.persistent.subscription_manager import (
+    SubscriptionContainer,
+)
 from web3.types import (
     RPCEndpoint,
+    RPCId,
     RPCResponse,
 )
 from web3.utils import (
@@ -75,17 +78,22 @@ class TaskReliantQueue(_TaskReliantQueue[T]):
 class RequestProcessor:
     _subscription_queue_synced_with_ws_stream: bool = False
 
+    # set by the subscription manager when it is initialized
+    _subscription_container: Optional[SubscriptionContainer] = None
+
     def __init__(
         self,
         provider: "PersistentConnectionProvider",
         subscription_response_queue_size: int = 500,
     ) -> None:
         self._provider = provider
-
         self._request_information_cache: SimpleCache = SimpleCache(500)
         self._request_response_cache: SimpleCache = SimpleCache(500)
         self._subscription_response_queue: TaskReliantQueue[
             Union[RPCResponse, TaskNotRunning]
+        ] = TaskReliantQueue(maxsize=subscription_response_queue_size)
+        self._handler_subscription_queue: TaskReliantQueue[
+            Union[RPCResponse, TaskNotRunning, SubscriptionProcessingFinished]
         ] = TaskReliantQueue(maxsize=subscription_response_queue_size)
 
     @property
@@ -100,6 +108,7 @@ class RequestProcessor:
 
     def cache_request_information(
         self,
+        request_id: Optional[RPCId],
         method: RPCEndpoint,
         params: Any,
         response_formatters: Tuple[
@@ -120,25 +129,23 @@ class RequestProcessor:
                 )
                 return None
 
-        if self._provider._is_batching:
+        if request_id is None:
+            if not self._provider._is_batching:
+                raise Web3ValueError(
+                    "Request id must be provided when not batching requests."
+                )
             # the _batch_request_counter is set when entering the context manager
-            current_request_id = self._provider._batch_request_counter
+            request_id = self._provider._batch_request_counter
             self._provider._batch_request_counter += 1
-        else:
-            # copy the request counter and find the next request id without incrementing
-            # since this is done when / if the request is successfully sent
-            current_request_id = next(copy(self._provider.request_counter))
-        cache_key = generate_cache_key(current_request_id)
 
-        self._bump_cache_if_key_present(cache_key, current_request_id)
-
+        cache_key = generate_cache_key(request_id)
         request_info = RequestInformation(
             method,
             params,
             response_formatters,
         )
         self._provider.logger.debug(
-            f"Caching request info:\n    request_id={current_request_id},\n"
+            f"Caching request info:\n    request_id={request_id},\n"
             f"    cache_key={cache_key},\n    request_info={request_info.__dict__}"
         )
         self._request_information_cache.cache(
@@ -146,30 +153,6 @@ class RequestProcessor:
             request_info,
         )
         return cache_key
-
-    def _bump_cache_if_key_present(self, cache_key: str, request_id: int) -> None:
-        """
-        If the cache key is present in the cache, bump the cache key and request id
-        by one to make room for the new request. This behavior is necessary when a
-        request is made but inner requests, say to `eth_estimateGas` if the `gas` is
-        missing, are made before the original request is sent.
-        """
-        if cache_key in self._request_information_cache:
-            original_request_info = self._request_information_cache.get_cache_entry(
-                cache_key
-            )
-            bump = generate_cache_key(request_id + 1)
-
-            # recursively bump the cache if the new key is also present
-            self._bump_cache_if_key_present(bump, request_id + 1)
-
-            self._provider.logger.debug(
-                "Caching internal request. Bumping original request in cache:\n"
-                f"    request_id=[{request_id}] -> [{request_id + 1}],\n"
-                f"    cache_key=[{cache_key}] -> [{bump}],\n"
-                f"    request_info={original_request_info.__dict__}"
-            )
-            self._request_information_cache.cache(bump, original_request_info)
 
     def pop_cached_request_information(
         self, cache_key: str
@@ -288,6 +271,15 @@ class RequestProcessor:
 
     # raw response cache
 
+    def _is_batch_response(
+        self, raw_response: Union[List[RPCResponse], RPCResponse]
+    ) -> bool:
+        return isinstance(raw_response, list) or (
+            isinstance(raw_response, dict)
+            and raw_response.get("id") is None
+            and self._provider._is_batching
+        )
+
     async def cache_raw_response(
         self, raw_response: Any, subscription: bool = False
     ) -> None:
@@ -303,8 +295,18 @@ class RequestProcessor:
             self._provider.logger.debug(
                 f"Caching subscription response:\n    response={raw_response}"
             )
-            await self._subscription_response_queue.put(raw_response)
-        elif isinstance(raw_response, list):
+            subscription_id = raw_response.get("params", {}).get("subscription")
+            sub_container = self._subscription_container
+            if sub_container and sub_container.get_handler_subscription_by_id(
+                subscription_id
+            ):
+                # if the subscription has a handler, put it in the handler queue
+                await self._handler_subscription_queue.put(raw_response)
+            else:
+                # otherwise, put it in the subscription response queue so a response
+                # can be yielded by the message stream
+                await self._subscription_response_queue.put(raw_response)
+        elif self._is_batch_response(raw_response):
             # Since only one batch should be in the cache at all times, we use a
             # constant cache key for the batch response.
             cache_key = generate_cache_key(BATCH_REQUEST_ID)
@@ -367,7 +369,12 @@ class RequestProcessor:
 
         return raw_response
 
-    # request processor class methods
+    # cache methods
+
+    def _reset_handler_subscription_queue(self) -> None:
+        self._handler_subscription_queue = TaskReliantQueue(
+            maxsize=self._handler_subscription_queue.maxsize
+        )
 
     def clear_caches(self) -> None:
         """Clear the request processor caches."""
@@ -376,3 +383,4 @@ class RequestProcessor:
         self._subscription_response_queue = TaskReliantQueue(
             maxsize=self._subscription_response_queue.maxsize
         )
+        self._reset_handler_subscription_queue()

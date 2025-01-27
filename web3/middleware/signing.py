@@ -19,6 +19,9 @@ from eth_account import (
 from eth_account.signers.local import (
     LocalAccount,
 )
+from eth_account.types import (
+    TransactionDictType as EthAccountTxParams,
+)
 from eth_keys.datatypes import (
     PrivateKey,
 )
@@ -186,7 +189,7 @@ class SignAndSendRawMiddlewareBuilder(Web3MiddlewareBuilder):
 
                 return (
                     RPCEndpoint("eth_sendRawTransaction"),
-                    [raw_tx.hex()],
+                    [raw_tx.to_0x_hex()],
                 )
 
     # -- async -- #
@@ -211,9 +214,11 @@ class SignAndSendRawMiddlewareBuilder(Web3MiddlewareBuilder):
                 return method, params
             else:
                 account = self._accounts[to_checksum_address(tx_from)]
-                raw_tx = account.sign_transaction(filled_transaction).raw_transaction
+                raw_tx = account.sign_transaction(
+                    cast(EthAccountTxParams, filled_transaction)
+                ).raw_transaction
 
                 return (
                     RPCEndpoint("eth_sendRawTransaction"),
-                    [raw_tx.hex()],
+                    [raw_tx.to_0x_hex()],
                 )

@@ -5,6 +5,7 @@ from concurrent.futures import (
 import logging
 import os
 import threading
+import time
 from typing import (
     Any,
     Dict,
@@ -17,6 +18,7 @@ from aiohttp import (
     ClientResponse,
     ClientSession,
     ClientTimeout,
+    TCPConnector,
 )
 from eth_typing import (
     URI,
@@ -31,6 +33,9 @@ from web3._utils.caching import (
 )
 from web3._utils.http import (
     DEFAULT_HTTP_TIMEOUT,
+)
+from web3.exceptions import (
+    TimeExhausted,
 )
 from web3.utils.caching import (
     SimpleCache,
@@ -119,17 +124,45 @@ class HTTPSessionManager:
         session = self.cache_and_return_session(
             endpoint_uri, request_timeout=kwargs["timeout"]
         )
-        response = session.post(endpoint_uri, *args, **kwargs)
-        return response
+        return session.post(endpoint_uri, *args, **kwargs)
+
+    def json_make_post_request(
+        self, endpoint_uri: URI, *args: Any, **kwargs: Any
+    ) -> Dict[str, Any]:
+        response = self.get_response_from_post_request(endpoint_uri, *args, **kwargs)
+        response.raise_for_status()
+        return response.json()
 
     def make_post_request(
         self, endpoint_uri: URI, data: Union[bytes, Dict[str, Any]], **kwargs: Any
     ) -> bytes:
-        response = self.get_response_from_post_request(
+        kwargs.setdefault("timeout", DEFAULT_HTTP_TIMEOUT)
+        kwargs.setdefault("stream", False)
+
+        start = time.time()
+        timeout = kwargs["timeout"]
+
+        with self.get_response_from_post_request(
             endpoint_uri, data=data, **kwargs
-        )
-        response.raise_for_status()
-        return response.content
+        ) as response:
+            response.raise_for_status()
+            if kwargs.get("stream"):
+                return self._handle_streaming_response(response, start, timeout)
+            else:
+                return response.content
+
+    @staticmethod
+    def _handle_streaming_response(
+        response: requests.Response, start: float, timeout: float
+    ) -> bytes:
+        response_body = b""
+        for data in response.iter_content():
+            response_body += data
+            # Manually manage timeout so streaming responses time out
+            # rather than resetting the timeout each time a response comes back
+            if (time.time() - start) > timeout:
+                raise TimeExhausted
+        return response_body
 
     def _close_evicted_sessions(self, evicted_sessions: List[requests.Session]) -> None:
         for evicted_session in evicted_sessions:
@@ -151,7 +184,12 @@ class HTTPSessionManager:
         async with async_lock(self.session_pool, self._lock):
             if cache_key not in self.session_cache:
                 if session is None:
-                    session = ClientSession(raise_for_status=True)
+                    session = ClientSession(
+                        raise_for_status=True,
+                        connector=TCPConnector(
+                            force_close=True, enable_cleanup_closed=True
+                        ),
+                    )
 
                 cached_session, evicted_items = self.session_cache.cache(
                     cache_key, session
@@ -190,7 +228,12 @@ class HTTPSessionManager:
                     )
 
                     # replace stale session with a new session at the cache key
-                    _session = ClientSession(raise_for_status=True)
+                    _session = ClientSession(
+                        raise_for_status=True,
+                        connector=TCPConnector(
+                            force_close=True, enable_cleanup_closed=True
+                        ),
+                    )
                     cached_session, evicted_items = self.session_cache.cache(
                         cache_key, _session
                     )
@@ -254,6 +297,15 @@ class HTTPSessionManager:
         )
         response = await session.post(endpoint_uri, *args, **kwargs)
         return response
+
+    async def async_json_make_post_request(
+        self, endpoint_uri: URI, *args: Any, **kwargs: Any
+    ) -> Dict[str, Any]:
+        response = await self.async_get_response_from_post_request(
+            endpoint_uri, *args, **kwargs
+        )
+        response.raise_for_status()
+        return await response.json()
 
     async def async_make_post_request(
         self, endpoint_uri: URI, data: Union[bytes, Dict[str, Any]], **kwargs: Any

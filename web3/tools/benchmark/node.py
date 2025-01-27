@@ -24,7 +24,7 @@ from web3.tools.benchmark.utils import (
     kill_proc_gracefully,
 )
 
-GETH_FIXTURE_ZIP = "geth-1.13.14-fixture.zip"
+GETH_FIXTURE_ZIP = "geth-1.14.12-fixture.zip"
 
 
 class GethBenchmarkFixture:
@@ -87,7 +87,7 @@ class GethBenchmarkFixture:
             "--http.port",
             self.rpc_port,
             "--http.api",
-            "admin,eth,net,web3",
+            "admin,debug,eth,net,web3",
             "--ipcdisable",
             "--password",
             os.path.join(datadir, "keystore", "pw.txt"),

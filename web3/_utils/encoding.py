@@ -255,12 +255,11 @@ def to_4byte_hex(hex_or_str_or_bytes: Union[HexStr, str, bytes, int]) -> HexStr:
     return pad_hex(hex_str, size_of_4bytes)
 
 
-# type ignored because subclassing BaseArrayEncoder which has type Any
-class DynamicArrayPackedEncoder(BaseArrayEncoder):  # type: ignore[misc]
+class DynamicArrayPackedEncoder(BaseArrayEncoder):
     is_dynamic = True
 
     def encode(self, value: Sequence[Any]) -> bytes:
-        encoded_elements = self.encode_elements(value)
+        encoded_elements = self.encode_elements(value)  # type: ignore[no-untyped-call]
         encoded_value = encoded_elements
 
         return encoded_value
@@ -279,10 +278,10 @@ def encode_single_packed(_type: TypeStr, value: Any) -> bytes:
     )
 
     abi_type = abi_type_parser.parse(_type)
-    if has_arrlist(_type):
+    if has_arrlist(_type):  # type: ignore[no-untyped-call]
         item_encoder = registry.get_encoder(abi_type.item_type.to_type_str())
         if abi_type.arrlist[-1] != 1:
-            return DynamicArrayPackedEncoder(item_encoder=item_encoder).encode(value)
+            return DynamicArrayPackedEncoder(item_encoder=item_encoder).encode(value)  # type: ignore[no-untyped-call]  # noqa: E501
         else:
             raise NotImplementedError(
                 "Fixed arrays are not implemented in this packed encoder prototype"

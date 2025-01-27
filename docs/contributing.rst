@@ -143,7 +143,7 @@ First, install the test dependencies:
 
 .. code:: sh
 
-    $ pip install -e ".[tester]"
+    $ pip install -e ".[test]"
 
 You can run all tests with:
 
@@ -351,7 +351,7 @@ Before generating new fixtures, make sure you have the test dependencies install
 
 .. code:: sh
 
-    $ pip install -e ".[tester]"
+    $ pip install -e ".[test]"
 
 .. note::
 
@@ -373,35 +373,35 @@ Geth Fixtures
 
    .. code:: sh
 
-       $ python -m geth.install v1.13.14
+      $ python -m geth.install v1.14.12
 
 2. Specify the Geth binary and run the fixture creation script (from within the web3.py directory):
 
    .. code:: sh
 
-       $ GETH_BINARY=~/.py-geth/geth-v1.13.14/bin/geth python ./tests/integration/generate_fixtures/go_ethereum.py ./tests/integration/geth-1.13.14-fixture
+      $ GETH_BINARY=~/.py-geth/geth-v1.14.12/bin/geth python ./tests/integration/generate_fixtures/go_ethereum.py
 
 3. The output of this script is your fixture, a zip file, which is now stored in ``/tests/integration/``.
-   Update the ``/tests/integration/go_ethereum/conftest.py`` and
-   ``/web3/tools/benchmark/node.py`` files to point to this new fixture. Delete the old
-   fixture.
+   The ``/tests/integration/go_ethereum/conftest.py`` and
+   ``/web3/tools/benchmark/node.py`` files should be updated automatically to point to this new fixture.
+   Delete the old fixture.
 
 4. Run the tests. To ensure that the tests run with the correct Geth version locally,
    you may again include the ``GETH_BINARY`` environment variable.
 
-5. Update the ``geth_version`` and ``pygeth_version`` parameter defaults in
-   ``/.circleci/config.yml`` to match the ``go-ethereum`` version used to generate the
-   test fixture and the ``py-geth`` version that supports installing it.
+5. The ``geth_version`` and ``pygeth_version`` parameter defaults in
+   ``/.circleci/config.yml`` should be automatically updated to match the
+   ``go-ethereum`` version used to generate the test fixture and the ``py-geth``
+   version that supports installing it.
 
 
 CI Testing With a Nightly Geth Build
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Occasionally you'll want to have CI run the test suite against an unreleased version of Geth,
-for example, to test upcoming hard fork changes. The workflow described below is for testing only,
-i.e., open a PR, let CI run the tests, but the changes should only be merged into main once the
-Geth release is published or you have some workaround that doesn't require test fixtures built from
-an unstable client.
+Occasionally you'll want to have CI run the test suite against an unreleased version of
+Geth - e.g. to test upcoming hard fork changes. The workflow described below is for
+testing only, as updates will only be merged into main once the Geth release is
+published and the test runs are updated to use the new stable version.
 
 1. Configure ``tests/integration/generate_fixtures/go_ethereum/common.py`` as needed.
 
@@ -415,7 +415,8 @@ an unstable client.
    `develop build <https://geth.ethereum.org/downloads/>`_, then
    add it to the root of your web3.py directory. Rename the binary ``custom_geth``.
 
-5. In ``.circleci/config.yml``, update jobs relying on ``geth_steps``, to instead use ``custom_geth_steps``.
+5. In ``.circleci/config.yml``, update the ``geth_version`` pipeline parameter to
+   "custom". This will trigger the custom Geth build to be used in the CI test suite.
 
 6. Create a PR and let CI do its thing.
 

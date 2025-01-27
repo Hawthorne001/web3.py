@@ -19,6 +19,7 @@ from eth_abi.grammar import (
     parse,
 )
 from eth_typing import (
+    ABI,
     ChecksumAddress,
     HexStr,
     TypeStr,
@@ -61,9 +62,6 @@ from web3.exceptions import (
     InvalidAddress,
     NameNotFound,
     Web3ValueError,
-)
-from web3.types import (
-    ABI,
 )
 
 if TYPE_CHECKING:
@@ -256,7 +254,9 @@ def normalize_abi(abi: Union[ABI, str]) -> ABI:
     return cast(ABI, abi)
 
 
-def normalize_address(ens: ENS, address: ChecksumAddress) -> ChecksumAddress:
+def normalize_address(
+    ens: ENS, address: Optional[ChecksumAddress]
+) -> Union[ChecksumAddress, None]:
     if address:
         if is_ens_name(address):
             validate_name_has_address(ens, address)
@@ -265,15 +265,17 @@ def normalize_address(ens: ENS, address: ChecksumAddress) -> ChecksumAddress:
     return address
 
 
-def normalize_address_no_ens(address: ChecksumAddress) -> ChecksumAddress:
+def normalize_address_no_ens(
+    address: Optional[ChecksumAddress],
+) -> Union[ChecksumAddress, None]:
     if address:
         validate_address(address)
     return address
 
 
-def normalize_bytecode(bytecode: bytes) -> HexBytes:
-    if bytecode:
-        bytecode = HexBytes(bytecode)
+def normalize_bytecode(bytecode: Optional[bytes]) -> Union[HexBytes, None]:
+    if bytecode is not None:
+        return HexBytes(bytecode)
     return bytecode
 
 

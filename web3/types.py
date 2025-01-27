@@ -27,17 +27,23 @@ from hexbytes import (
     HexBytes,
 )
 
-from web3._utils.compat import (
-    NotRequired,
-)
-from web3._utils.function_identifiers import (
+from web3._utils.abi_element_identifiers import (
     FallbackFn,
     ReceiveFn,
 )
+from web3._utils.compat import (
+    NotRequired,
+)
 
 if TYPE_CHECKING:
-    from web3.contract.async_contract import AsyncContractFunction  # noqa: F401
-    from web3.contract.contract import ContractFunction  # noqa: F401
+    from web3.contract.async_contract import (  # noqa: F401
+        AsyncContractEvent,
+        AsyncContractFunction,
+    )
+    from web3.contract.contract import (  # noqa: F401
+        ContractEvent,
+        ContractFunction,
+    )
     from web3.main import (  # noqa: F401
         AsyncWeb3,
         Web3,
@@ -53,7 +59,7 @@ BlockParams = Literal["latest", "earliest", "pending", "safe", "finalized"]
 BlockIdentifier = Union[BlockParams, BlockNumber, Hash32, HexStr, HexBytes, int]
 LatestBlockParam = Literal["latest"]
 
-FunctionIdentifier = Union[str, Type[FallbackFn], Type[ReceiveFn]]
+ABIElementIdentifier = Union[str, Type[FallbackFn], Type[ReceiveFn]]
 
 # bytes, hexbytes, or hexstr representing a 32 byte hash
 _Hash32 = Union[Hash32, HexBytes, HexStr]
@@ -73,46 +79,6 @@ class AccessListEntry(TypedDict):
 
 
 AccessList = NewType("AccessList", Sequence[AccessListEntry])
-
-
-# todo: move these to eth_typing once web3 is type hinted
-class ABIEventParams(TypedDict, total=False):
-    indexed: bool
-    name: str
-    type: str
-
-
-class ABIEvent(TypedDict, total=False):
-    anonymous: bool
-    inputs: Sequence["ABIEventParams"]
-    name: str
-    type: Literal["event"]
-
-
-class ABIFunctionComponents(TypedDict, total=False):
-    components: Sequence["ABIFunctionComponents"]
-    name: str
-    type: str
-
-
-class ABIFunctionParams(TypedDict, total=False):
-    components: Sequence["ABIFunctionComponents"]
-    name: str
-    type: str
-
-
-class ABIFunction(TypedDict, total=False):
-    constant: bool
-    inputs: Sequence["ABIFunctionParams"]
-    name: str
-    outputs: Sequence["ABIFunctionParams"]
-    payable: bool
-    stateMutability: Literal["pure", "view", "nonpayable", "payable"]
-    type: Literal["function", "constructor", "fallback", "receive"]
-
-
-ABIElement = Union[ABIFunction, ABIEvent]
-ABI = Sequence[Union[ABIFunction, ABIEvent]]
 
 
 class EventData(TypedDict):
@@ -296,6 +262,13 @@ EthSubscriptionParams = Union[
 RPCId = Optional[Union[int, str]]
 
 
+class RPCRequest(TypedDict, total=False):
+    id: RPCId
+    jsonrpc: Literal["2.0"]
+    method: RPCEndpoint
+    params: Any
+
+
 class RPCResponse(TypedDict, total=False):
     error: RPCError
     id: RPCId
@@ -307,11 +280,19 @@ class RPCResponse(TypedDict, total=False):
     params: EthSubscriptionParams
 
 
+EthSubscriptionResult = Union[
+    BlockData,  # newHeads
+    TxData,  # newPendingTransactions, full_transactions=True
+    HexBytes,  # newPendingTransactions, full_transactions=False
+    LogReceipt,  # logs
+    SyncProgress,  # syncing
+    GethSyncingSubscriptionResult,  # geth syncing
+]
+
+
 class FormattedEthSubscriptionResponse(TypedDict):
     subscription: HexStr
-    result: Union[
-        BlockData, TxData, LogReceipt, SyncProgress, GethSyncingSubscriptionResult
-    ]
+    result: EthSubscriptionResult
 
 
 class CreateAccessListResponse(TypedDict):
@@ -320,10 +301,13 @@ class CreateAccessListResponse(TypedDict):
 
 
 MakeRequestFn = Callable[[RPCEndpoint, Any], RPCResponse]
-MakeBatchRequestFn = Callable[[List[Tuple[RPCEndpoint, Any]]], List[RPCResponse]]
+MakeBatchRequestFn = Callable[
+    [List[Tuple[RPCEndpoint, Any]]], Union[List[RPCResponse], RPCResponse]
+]
 AsyncMakeRequestFn = Callable[[RPCEndpoint, Any], Coroutine[Any, Any, RPCResponse]]
 AsyncMakeBatchRequestFn = Callable[
-    [List[Tuple[RPCEndpoint, Any]]], Coroutine[Any, Any, List[RPCResponse]]
+    [List[Tuple[RPCEndpoint, Any]]],
+    Coroutine[Any, Any, Union[List[RPCResponse], RPCResponse]],
 ]
 
 
@@ -510,6 +494,84 @@ class TxPoolStatus(TypedDict, total=False):
 
 
 #
+# debug types
+#
+class TraceConfig(TypedDict, total=False):
+    disableStorage: bool
+    disableStack: bool
+    enableMemory: bool
+    enableReturnData: bool
+    tracer: str
+    tracerConfig: Dict[str, Any]
+    timeout: int
+
+
+class CallTraceLog(TypedDict):
+    address: ChecksumAddress
+    data: HexBytes
+    topics: Sequence[HexBytes]
+    position: int
+
+
+# syntax b/c "from" keyword not allowed w/ class construction
+CallTrace = TypedDict(
+    "CallTrace",
+    {
+        "type": str,
+        "from": ChecksumAddress,
+        "to": ChecksumAddress,
+        "value": Wei,
+        "gas": int,
+        "gasUsed": int,
+        "input": HexBytes,
+        "output": HexBytes,
+        "error": str,
+        "revertReason": str,
+        "calls": Sequence["CallTrace"],
+        "logs": Sequence[CallTraceLog],
+    },
+    total=False,
+)
+
+
+class TraceData(TypedDict, total=False):
+    balance: int
+    nonce: int
+    code: str
+    storage: Dict[str, str]
+
+
+class DiffModeTrace(TypedDict):
+    post: Dict[ChecksumAddress, TraceData]
+    pre: Dict[ChecksumAddress, TraceData]
+
+
+PrestateTrace = Dict[ChecksumAddress, TraceData]
+
+
+# 4byte tracer returns something like:
+# { '0x27dc297e-128' : 1 }
+# which is: { 4byte signature - calldata size : # of occurrences of key }
+FourByteTrace = Dict[str, int]
+
+
+class StructLog(TypedDict):
+    pc: int
+    op: str
+    gas: int
+    gasCost: int
+    depth: int
+    stack: List[HexStr]
+
+
+class OpcodeTrace(TypedDict, total=False):
+    gas: int
+    failed: bool
+    returnValue: str
+    structLogs: List[StructLog]
+
+
+#
 # web3.geth types
 #
 
@@ -523,6 +585,7 @@ class GethWallet(TypedDict):
 # Contract types
 
 TContractFn = TypeVar("TContractFn", "ContractFunction", "AsyncContractFunction")
+TContractEvent = TypeVar("TContractEvent", "ContractEvent", "AsyncContractEvent")
 
 
 # Tracing types

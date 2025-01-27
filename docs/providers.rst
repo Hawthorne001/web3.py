@@ -214,6 +214,8 @@ AsyncHTTPProvider
         >>> # If you want to pass in your own session:
         >>> custom_session = ClientSession()
         >>> await w3.provider.cache_async_session(custom_session) # This method is an async method so it needs to be handled accordingly
+        >>> # when you're finished, disconnect:
+        >>> w3.provider.disconnect()
 
     Under the hood, the ``AsyncHTTPProvider`` uses the python
     `aiohttp <https://docs.aiohttp.org/en/stable/>`_ library for making requests.
@@ -269,6 +271,10 @@ AsyncIPCProvider
     JSON-RPC server.
 
     *  ``ipc_path`` is the filesystem path to the IPC socket:
+    *  ``read_buffer_limit`` is the maximum size of data, in bytes, that can be read
+       from the socket at one time. Defaults to 20MB (20 * 1024 * 1024). Raises
+       ``ReadBufferLimitReached`` if the limit is reached, suggesting that the buffer
+       limit be increased.
 
     This provider inherits from the
     :class:`~web3.providers.persistent.PersistentConnectionProvider` class. Refer to
@@ -336,7 +342,7 @@ can be found in the `websockets connection`_ docs.
         ...     logger.setLevel(logging.DEBUG)
         ...     logger.addHandler(logging.StreamHandler())
 
-        >>> async def context_manager_subscriptions_example():
+        >>> async def context_manager_subscription_example():
         ...     #  async with AsyncWeb3(AsyncIPCProvider("./path/to.filename.ipc") as w3:  # for the AsyncIPCProvider
         ...     async with AsyncWeb3(WebSocketProvider(f"ws://127.0.0.1:8546")) as w3:  # for the WebSocketProvider
         ...         # subscribe to new block headers
@@ -413,7 +419,7 @@ shown below.
     ...     await w3.provider.disconnect()
 
     # run the example
-    >>> asyncio.run(await_instantiation_example)
+    >>> asyncio.run(await_instantiation_example())
 
 .. code-block:: python
 
@@ -428,7 +434,7 @@ shown below.
     ...     await w3.provider.disconnect()
 
     # run the example
-    >>> asyncio.run(await_provider_connect_example)
+    >>> asyncio.run(await_provider_connect_example())
 
 :class:`~web3.providers.persistent.PersistentConnectionProvider` classes use the
 :class:`~web3.providers.persistent.request_processor.RequestProcessor` class under the
@@ -482,17 +488,6 @@ Interacting with the Persistent Connection
         Examples on how to use this method can be seen above in the
         `Using Persistent Connection Providers`_ section.
 
-    .. py:method:: recv()
-
-        The ``recv()`` method can be used to receive the next message from the
-        socket. The response from this method is formatted by web3.py formatters
-        and run through the middleware before being returned. This is not the
-        recommended way to receive a message as the ``process_subscriptions()`` method
-        is available for listening to subscriptions and the standard API for making
-        requests via the appropriate module
-        (e.g. ``block_num = await w3.eth.block_number``) is available for receiving
-        responses for one-to-one request-to-response calls.
-
     .. py:method:: send(method: RPCEndpoint, params: Sequence[Any])
 
         This method is available strictly for sending raw requests to the socket,
@@ -501,6 +496,25 @@ Interacting with the Persistent Connection
         middleware. Instead, use the methods available on the respective web3
         module. For example, use ``w3.eth.get_block("latest")`` instead of
         ``w3.socket.send("eth_getBlockByNumber", ["latest", True])``.
+
+    .. py:method:: recv()
+
+        The ``recv()`` method can be used to receive the next response for a request
+        from the socket. The response from this method is the raw response. This is not
+        the recommended way to receive a response for a request, as it is not formatted
+        by *web3.py* formatters or run through the middleware. Instead, use the methods
+        available on the respective web3 module
+        (e.g. ``block_num = await w3.eth.block_number``) for retrieving responses for
+        one-to-one request-to-response calls.
+
+    .. py:method:: make_request(method: RPCEndpoint, params: Sequence[Any])
+
+        This method is available for making requests to the socket and retrieving the
+        response. It is not recommended to use this method directly, as the responses
+        will not be properly formatted by *web3.py* formatters or run through the
+        middleware. Instead, use the methods available on the respective web3 module.
+        For example, use ``w3.eth.get_block("latest")`` instead of
+        ``w3.socket.make_request("eth_getBlockByNumber", ["latest", True])``.
 
 
 LegacyWebSocketProvider
@@ -556,22 +570,26 @@ explicitly.
 EthereumTesterProvider
 ~~~~~~~~~~~~~~~~~~~~~~
 
-.. warning:: Experimental:  This provider is experimental. There are still significant gaps in
-    functionality. However it is being actively developed and supported.
+.. warning:: Experimental:  This provider is experimental. There are still significant
+    gaps in functionality. However it is being actively developed and supported.
 
-.. py:class:: EthereumTesterProvider(eth_tester=None)
+.. py:class:: EthereumTesterProvider(ethereum_tester=None, api_endpoints=None)
+.. py:class:: AsyncEthereumTesterProvider(ethereum_tester=None, api_endpoints=None)
 
-    This provider integrates with the ``eth-tester`` library.  The ``eth_tester`` constructor
-    argument should be an instance of the :class:`~eth_tester.EthereumTester` or a subclass of
-    :class:`~eth_tester.backends.base.BaseChainBackend` class provided by the ``eth-tester`` library.
-    If you would like a custom eth-tester instance to test with, see the
-    ``eth-tester`` library `documentation <https://github.com/ethereum/eth-tester>`_ for details.
+    This provider integrates with the ``eth-tester`` library. The ``ethereum_tester``
+    constructor argument should be an instance of the :class:`~eth_tester.EthereumTester`
+    or a subclass of :class:`~eth_tester.backends.base.BaseChainBackend` class provided
+    by the ``eth-tester`` library. The ``api_endpoints`` argument should be a ``dict``
+    of RPC endpoints. You can see the structure and defaults `here <https://github.com/ethereum/web3.py/blob/283b536c7d53e605c61468941e3fc07a6c5d0c09/web3/providers/eth_tester/defaults.py#L228>`_.
+    If you would like a custom ``eth-tester`` instance to test with, see the
+    ``eth-tester`` library `documentation <https://github.com/ethereum/eth-tester>`_
+    for details.
 
     .. code-block:: python
 
         >>> from web3 import Web3, EthereumTesterProvider
         >>> w3 = Web3(EthereumTesterProvider())
 
-.. NOTE:: To install the needed dependencies to use EthereumTesterProvider, you can install the
-    pip extras package that has the correct interoperable versions of the ``eth-tester``
-    and ``py-evm`` dependencies needed to do testing: e.g. ``pip install web3[tester]``
+.. NOTE:: To install the needed dependencies to use EthereumTesterProvider, you can
+    install the pip extras package that has the correct interoperable versions of the
+    ``eth-tester`` and ``py-evm`` dependencies needed: e.g. ``pip install "web3[tester]"``

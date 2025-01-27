@@ -1,15 +1,17 @@
 import json
 import pytest
+import re
 
-from web3._utils.abi import (
+from eth_utils.abi import (
     get_abi_input_types,
 )
-from web3._utils.function_identifiers import (
+
+from web3._utils.abi_element_identifiers import (
     FallbackFn,
     ReceiveFn,
 )
 from web3.exceptions import (
-    Web3ValidationError,
+    MismatchedABI,
 )
 
 SINGLE_FN_NO_ARGS = json.loads(
@@ -106,7 +108,7 @@ MULTIPLE_FUNCTIONS = json.loads(
 def test_finds_single_function_without_args(w3):
     Contract = w3.eth.contract(abi=SINGLE_FN_NO_ARGS)
 
-    abi = Contract._find_matching_fn_abi("a", [])
+    abi = Contract._find_matching_fn_abi("a", *[])
     assert abi["name"] == "a"
     assert abi["inputs"] == []
 
@@ -114,7 +116,7 @@ def test_finds_single_function_without_args(w3):
 def test_finds_single_function_with_args(w3):
     Contract = w3.eth.contract(abi=SINGLE_FN_ONE_ARG)
 
-    abi = Contract._find_matching_fn_abi("a", [1234])
+    abi = Contract._find_matching_fn_abi("a", *[1234])
     assert abi["name"] == "a"
     assert len(abi["inputs"]) == 1
     assert abi["inputs"][0]["type"] == "uint256"
@@ -123,22 +125,22 @@ def test_finds_single_function_with_args(w3):
 def test_finds_fallback_function(w3):
     Contract = w3.eth.contract(abi=FALLBACK_FUNCTION)
 
-    abi = Contract._find_matching_fn_abi(FallbackFn, [])
+    abi = Contract._find_matching_fn_abi(FallbackFn, *[])
     assert abi["type"] == "fallback"
 
 
 def test_finds_receive_function(w3):
     Contract = w3.eth.contract(abi=RECEIVE_FUNCTION)
 
-    abi = Contract._find_matching_fn_abi(ReceiveFn, [])
+    abi = Contract._find_matching_fn_abi(ReceiveFn, *[])
     assert abi["type"] == "receive"
 
 
 def test_error_when_no_function_name_match(w3):
     Contract = w3.eth.contract(abi=SINGLE_FN_NO_ARGS)
 
-    with pytest.raises(Web3ValidationError):
-        Contract._find_matching_fn_abi("no_function_name", [1234])
+    with pytest.raises(MismatchedABI):
+        Contract._find_matching_fn_abi("no_function_name", *[1234])
 
 
 @pytest.mark.parametrize(
@@ -159,7 +161,7 @@ def test_finds_function_with_matching_args_non_strict(
 ):
     contract = w3_non_strict_abi.eth.contract(abi=MULTIPLE_FUNCTIONS)
 
-    abi = contract._find_matching_fn_abi("a", arguments)
+    abi = contract._find_matching_fn_abi("a", *arguments)
     assert abi["name"] == "a"
     assert len(abi["inputs"]) == len(expected_types)
     assert get_abi_input_types(abi) == expected_types
@@ -167,23 +169,76 @@ def test_finds_function_with_matching_args_non_strict(
 
 def test_finds_function_with_matching_args_strict_type_checking_by_default(w3):
     contract = w3.eth.contract(abi=MULTIPLE_FUNCTIONS)
-    with pytest.raises(Web3ValidationError):
-        contract._find_matching_fn_abi("a", [""])
+    with pytest.raises(
+        MismatchedABI,
+        match=re.escape(
+            "\nABI Not Found!\n"
+            "Found multiple elements named `a` that accept 1 argument(s).\n"
+            "Provided argument types: (str)\n"
+            "Provided keyword argument types: {}\n\n"
+            "Tried to find a matching ABI element named `a`, but encountered the "
+            "following problems:\n"
+            "Signature: a((int256,bool)[]), type: function\n"
+            "Arguments do not match types in `a((int256,bool)[])`.\n"
+            'Error: Expected non-string sequence for "tuple[]" component type: got \n'
+            "Signature: a(bytes32), type: function\n"
+            "Argument 1 value `` is not compatible with type `bytes32`.\n"
+            "Signature: a(uint256), type: function\n"
+            "Argument 1 value `` is not compatible with type `uint256`.\n"
+            "Signature: a(uint8), type: function\n"
+            "Argument 1 value `` is not compatible with type `uint8`.\n"
+            "Signature: a(int8), type: function\n"
+            "Argument 1 value `` is not compatible with type `int8`.\n"
+            "Signature: a(), type: function\n"
+            "Expected 0 argument(s) but received 1 argument(s).\n"
+        ),
+    ):
+        contract._find_matching_fn_abi("a", *[""])
 
 
 def test_error_when_duplicate_match(w3):
     Contract = w3.eth.contract(abi=MULTIPLE_FUNCTIONS)
 
-    with pytest.raises(Web3ValidationError):
-        Contract._find_matching_fn_abi("a", [100])
+    with pytest.raises(
+        MismatchedABI,
+        match=re.escape(
+            "\nABI Not Found!\n"
+            "Found multiple elements named `a` that accept 1 argument(s).\n"
+            "Provided argument types: (int)\n"
+            "Provided keyword argument types: {}\n\n"
+            "Tried to find a matching ABI element named `a`, but encountered the "
+            "following problems:\n"
+            "Signature: a((int256,bool)[]), type: function\n"
+            "Arguments do not match types in `a((int256,bool)[])`.\n"
+            'Error: Expected non-string sequence for "tuple[]" component type: '
+            "got 100\n"
+            "Signature: a(bytes32), type: function\n"
+            "Argument 1 value `100` is not compatible with type `bytes32`.\n"
+            "Signature: a(uint256), type: function\n"
+            "Argument 1 value `100` is valid.\n"
+            "Signature: a(uint8), type: function\n"
+            "Argument 1 value `100` is valid.\n"
+            "Signature: a(int8), type: function\n"
+            "Argument 1 value `100` is valid.\n"
+            "Signature: a(), type: function\n"
+            "Expected 0 argument(s) but received 1 argument(s).\n"
+        ),
+    ):
+        Contract._find_matching_fn_abi("a", *[100])
 
 
 @pytest.mark.parametrize("arguments", (["0xf00b47"], [b""], [""], ["00" * 16]))
 def test_strict_errors_if_type_is_wrong(w3, arguments):
     Contract = w3.eth.contract(abi=MULTIPLE_FUNCTIONS)
 
-    with pytest.raises(Web3ValidationError):
-        Contract._find_matching_fn_abi("a", arguments)
+    with pytest.raises(
+        MismatchedABI,
+        match=re.escape(
+            "\nABI Not Found!\n"
+            "Found multiple elements named `a` that accept 1 argument(s).\n"
+        ),
+    ):
+        Contract._find_matching_fn_abi("a", *arguments)
 
 
 @pytest.mark.parametrize(
@@ -198,7 +253,7 @@ def test_strict_errors_if_type_is_wrong(w3, arguments):
 def test_strict_finds_function_with_matching_args(w3, arguments, expected_types):
     Contract = w3.eth.contract(abi=MULTIPLE_FUNCTIONS)
 
-    abi = Contract._find_matching_fn_abi("a", arguments)
+    abi = Contract._find_matching_fn_abi("a", *arguments)
     assert abi["name"] == "a"
     assert len(abi["inputs"]) == len(expected_types)
     assert get_abi_input_types(abi) == expected_types

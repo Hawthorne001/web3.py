@@ -87,14 +87,17 @@ from web3.eth import (
 )
 from web3.exceptions import (
     Web3TypeError,
+    Web3ValidationError,
     Web3ValueError,
 )
 from web3.geth import (
     AsyncGeth,
     AsyncGethAdmin,
+    AsyncGethDebug,
     AsyncGethTxPool,
     Geth,
     GethAdmin,
+    GethDebug,
     GethTxPool,
 )
 from web3.manager import (
@@ -145,6 +148,9 @@ from web3.tracing import (
 from web3.types import (
     Wei,
 )
+from web3.providers.persistent.subscription_manager import (
+    SubscriptionManager,
+)
 
 if TYPE_CHECKING:
     from web3._utils.batching import RequestBatcher  # noqa: F401
@@ -161,6 +167,7 @@ def get_async_default_modules() -> Dict[str, Union[Type[Module], Sequence[Any]]]
             {
                 "admin": AsyncGethAdmin,
                 "txpool": AsyncGethTxPool,
+                "debug": AsyncGethDebug,
             },
         ),
     }
@@ -175,6 +182,7 @@ def get_default_modules() -> Dict[str, Union[Type[Module], Sequence[Any]]]:
             {
                 "admin": GethAdmin,
                 "txpool": GethTxPool,
+                "debug": GethDebug,
             },
         ),
         "tracing": Tracing,
@@ -350,6 +358,24 @@ class BaseWeb3:
         return self.manager._batch_requests()
 
 
+def _validate_provider(
+    w3: Union["Web3", "AsyncWeb3"],
+    provider: Optional[Union[BaseProvider, AsyncBaseProvider]],
+) -> None:
+    if provider is not None:
+        if isinstance(w3, AsyncWeb3) and not isinstance(provider, AsyncBaseProvider):
+            raise Web3ValidationError(
+                "Provider must be an instance of `AsyncBaseProvider` for "
+                f"`AsyncWeb3`, got {type(provider)}."
+            )
+
+        if isinstance(w3, Web3) and not isinstance(provider, BaseProvider):
+            raise Web3ValidationError(
+                "Provider must be an instance of `BaseProvider` for `Web3`, "
+                f"got {type(provider)}."
+            )
+
+
 class Web3(BaseWeb3):
     # mypy types
     eth: Eth
@@ -372,6 +398,8 @@ class Web3(BaseWeb3):
         ] = None,
         ens: Union[ENS, "Empty"] = empty,
     ) -> None:
+        _validate_provider(self, provider)
+
         self.manager = self.RequestManager(self, provider, middleware)
         self.codec = ABICodec(build_strict_registry())
 
@@ -440,6 +468,8 @@ class AsyncWeb3(BaseWeb3):
         ] = None,
         ens: Union[AsyncENS, "Empty"] = empty,
     ) -> None:
+        _validate_provider(self, provider)
+
         self.manager = self.RequestManager(self, provider, middleware)
         self.codec = ABICodec(build_strict_registry())
 
@@ -481,12 +511,27 @@ class AsyncWeb3(BaseWeb3):
             new_ens.w3 = self  # set self object reference for ``AsyncENS.w3``
         self._ens = new_ens
 
-    # -- persistent connection methods -- #
+    # -- persistent connection settings -- #
+
+    _subscription_manager: Optional[SubscriptionManager] = None
+    _persistent_connection: Optional["PersistentConnection"] = None
+
+    @property
+    @persistent_connection_provider_method()
+    def subscription_manager(self) -> SubscriptionManager:
+        """
+        Access the subscription manager for the current PersistentConnectionProvider.
+        """
+        if not self._subscription_manager:
+            self._subscription_manager = SubscriptionManager(self)
+        return self._subscription_manager
 
     @property
     @persistent_connection_provider_method()
     def socket(self) -> PersistentConnection:
-        return PersistentConnection(self)
+        if self._persistent_connection is None:
+            self._persistent_connection = PersistentConnection(self)
+        return self._persistent_connection
 
     # w3 = await AsyncWeb3(PersistentConnectionProvider(...))
     @persistent_connection_provider_method(
@@ -495,7 +540,10 @@ class AsyncWeb3(BaseWeb3):
     )
     def __await__(self) -> Generator[Any, None, Self]:
         async def __async_init__() -> Self:
-            await self.provider.connect()
+            provider = cast("PersistentConnectionProvider", self.provider)
+            await provider.connect()
+            # set signal handlers since not within a context manager
+            provider._set_signal_handlers()
             return self
 
         return __async_init__().__await__()

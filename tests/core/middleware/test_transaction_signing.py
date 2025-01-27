@@ -1,5 +1,8 @@
 import pytest
 
+from eth.vm.forks.london.transactions import (
+    DynamicFeeTransaction,
+)
 from eth_account import (
     Account,
 )
@@ -27,6 +30,7 @@ from hexbytes import (
     HexBytes,
 )
 import pytest_asyncio
+import rlp
 
 from web3 import (
     AsyncWeb3,
@@ -36,6 +40,7 @@ from web3.exceptions import (
     InvalidAddress,
 )
 from web3.middleware import (
+    BufferedGasEstimateMiddleware,
     SignAndSendRawMiddlewareBuilder,
 )
 from web3.middleware.signing import (
@@ -254,7 +259,9 @@ TEST_SIGNED_TRANSACTION_PARAMS = (
     TEST_SIGN_AND_SEND_RAW_MIDDLEWARE_PARAMS,
 )
 def test_sign_and_send_raw_middleware(w3_dummy, method, from_, expected, key_object):
-    w3_dummy.middleware_onion.add(SignAndSendRawMiddlewareBuilder.build(key_object))
+    w3_dummy.middleware_onion.inject(
+        SignAndSendRawMiddlewareBuilder.build(key_object), layer=0
+    )
 
     legacy_transaction = {
         "to": "0x7E5F4552091A69125d5DfCb7b8C2659029395Bdf",
@@ -305,7 +312,9 @@ def assert_method_and_txn_signed(actual, expected):
 
 @pytest.fixture()
 def w3():
-    return Web3(EthereumTesterProvider())
+    _w3 = Web3(EthereumTesterProvider())
+    _w3.eth.default_account = _w3.eth.accounts[0]
+    return _w3
 
 
 @pytest.mark.parametrize(
@@ -338,7 +347,12 @@ def fund_account(w3):
     tx_value = w3.to_wei(10, "ether")
     for address in (ADDRESS_1, ADDRESS_2):
         w3.eth.send_transaction(
-            {"to": address, "from": w3.eth.accounts[0], "gas": 21000, "value": tx_value}
+            {
+                "to": address,
+                "from": w3.eth.default_account,
+                "gas": 21000,
+                "value": tx_value,
+            }
         )
         assert w3.eth.get_balance(address) == tx_value
 
@@ -357,10 +371,12 @@ def fund_account(w3):
     ],
 )
 def test_signed_transaction(w3, fund_account, transaction, expected, key_object, from_):
-    w3.middleware_onion.add(SignAndSendRawMiddlewareBuilder.build(key_object))
+    w3.middleware_onion.inject(
+        SignAndSendRawMiddlewareBuilder.build(key_object), layer=0
+    )
 
     # Drop any falsy addresses
-    to_from = valfilter(bool, {"to": w3.eth.accounts[0], "from": from_})
+    to_from = valfilter(bool, {"to": w3.eth.default_account, "from": from_})
 
     _transaction = merge(transaction, to_from)
 
@@ -368,7 +384,9 @@ def test_signed_transaction(w3, fund_account, transaction, expected, key_object,
         with pytest.raises(expected):
             w3.eth.send_transaction(_transaction)
     else:
-        start_balance = w3.eth.get_balance(_transaction.get("from", w3.eth.accounts[0]))
+        start_balance = w3.eth.get_balance(
+            _transaction.get("from", w3.eth.default_account)
+        )
         w3.eth.send_transaction(_transaction)
         assert w3.eth.get_balance(_transaction.get("from")) <= start_balance + expected
 
@@ -389,7 +407,9 @@ def test_sign_and_send_raw_middleware_with_byte_addresses(
     from_ = from_converter(ADDRESS_1)
     to_ = to_converter(ADDRESS_2)
 
-    w3_dummy.middleware_onion.add(SignAndSendRawMiddlewareBuilder.build(private_key))
+    w3_dummy.middleware_onion.inject(
+        SignAndSendRawMiddlewareBuilder.build(private_key), layer=0
+    )
 
     actual = w3_dummy.manager.request_blocking(
         "eth_sendTransaction",
@@ -408,6 +428,47 @@ def test_sign_and_send_raw_middleware_with_byte_addresses(
     actual_method = actual[0]
     assert actual_method == "eth_sendRawTransaction"
     assert is_hexstr(raw_txn)
+
+
+def test_sign_and_send_raw_middleware_with_buffered_gas_estimate_middleware(
+    w3_dummy, request_mocker
+):
+    gas_buffer = 100000  # the default internal value
+    gas_estimate = 12345 - gas_buffer
+
+    w3_dummy.middleware_onion.add(BufferedGasEstimateMiddleware)
+    w3_dummy.middleware_onion.inject(
+        SignAndSendRawMiddlewareBuilder.build(PRIVATE_KEY_1), layer=0
+    )
+
+    with request_mocker(
+        w3_dummy,
+        mock_results={
+            "eth_getBlockByNumber": {"gasLimit": 200000},  # arbitrary high number
+            "eth_estimateGas": gas_estimate,
+        },
+    ):
+        actual = w3_dummy.manager.request_blocking(
+            "eth_sendTransaction",
+            [
+                {
+                    "to": ADDRESS_2,
+                    "from": ADDRESS_1,
+                    "value": 1,
+                    "nonce": 0,
+                    "maxFeePerGas": 10**9,
+                    "maxPriorityFeePerGas": 10**9,
+                }
+            ],
+        )
+
+    raw_txn = actual[1][0]
+    actual_method = actual[0]
+    assert actual_method == "eth_sendRawTransaction"
+    assert is_hexstr(raw_txn)
+
+    decoded_txn = rlp.decode(HexBytes(raw_txn[4:]), sedes=DynamicFeeTransaction)
+    assert decoded_txn["gas"] == gas_estimate + gas_buffer
 
 
 # -- async -- #
@@ -432,19 +493,26 @@ async def async_w3_dummy(request_mocker):
         yield w3_base
 
 
-@pytest.fixture
-def async_w3():
-    return AsyncWeb3(AsyncEthereumTesterProvider())
+@pytest_asyncio.fixture
+async def async_w3():
+    _async_w3 = AsyncWeb3(AsyncEthereumTesterProvider())
+    accounts = await _async_w3.eth.accounts
+    _async_w3.eth.default_account = accounts[0]
+    return _async_w3
 
 
 @pytest_asyncio.fixture
 async def async_fund_account(async_w3):
     # fund local account
-    accounts = await async_w3.eth.accounts
     tx_value = async_w3.to_wei(10, "ether")
     for address in (ADDRESS_1, ADDRESS_2):
         await async_w3.eth.send_transaction(
-            {"to": address, "from": accounts[0], "gas": 21000, "value": tx_value}
+            {
+                "to": address,
+                "from": async_w3.eth.default_account,
+                "gas": 21000,
+                "value": tx_value,
+            }
         )
         acct_bal = await async_w3.eth.get_balance(address)
         assert acct_bal == tx_value
@@ -462,8 +530,8 @@ async def test_async_sign_and_send_raw_middleware(
     expected,
     key_object,
 ):
-    async_w3_dummy.middleware_onion.add(
-        SignAndSendRawMiddlewareBuilder.build(key_object)
+    async_w3_dummy.middleware_onion.inject(
+        SignAndSendRawMiddlewareBuilder.build(key_object), layer=0
     )
 
     legacy_transaction = {
@@ -534,11 +602,12 @@ async def test_async_signed_transaction(
     key_object,
     from_,
 ):
-    async_w3.middleware_onion.add(SignAndSendRawMiddlewareBuilder.build(key_object))
+    async_w3.middleware_onion.inject(
+        SignAndSendRawMiddlewareBuilder.build(key_object), layer=0
+    )
 
     # Drop any falsy addresses
-    accounts = await async_w3.eth.accounts
-    to_from = valfilter(bool, {"to": accounts[0], "from": from_})
+    to_from = valfilter(bool, {"to": async_w3.eth.default_account, "from": from_})
 
     _transaction = merge(transaction, to_from)
 
@@ -547,7 +616,7 @@ async def test_async_signed_transaction(
             await async_w3.eth.send_transaction(_transaction)
     else:
         start_balance = await async_w3.eth.get_balance(
-            _transaction.get("from", accounts[0])
+            _transaction.get("from", async_w3.eth.default_account)
         )
         await async_w3.eth.send_transaction(_transaction)
         assert (
@@ -573,8 +642,8 @@ async def test_async_sign_and_send_raw_middleware_with_byte_addresses(
     from_ = from_converter(ADDRESS_1)
     to_ = to_converter(ADDRESS_2)
 
-    async_w3_dummy.middleware_onion.add(
-        SignAndSendRawMiddlewareBuilder.build(private_key)
+    async_w3_dummy.middleware_onion.inject(
+        SignAndSendRawMiddlewareBuilder.build(private_key), layer=0
     )
 
     actual = await async_w3_dummy.manager.coro_request(
@@ -594,3 +663,45 @@ async def test_async_sign_and_send_raw_middleware_with_byte_addresses(
     actual_method = actual[0]
     assert actual_method == "eth_sendRawTransaction"
     assert is_hexstr(raw_txn)
+
+
+@pytest.mark.asyncio
+async def test_async_sign_and_send_raw_middleware_with_buffered_gas_estimate_middleware(
+    async_w3_dummy, request_mocker
+):
+    gas_buffer = 100000  # the default internal value
+    gas_estimate = 12345 - gas_buffer
+
+    async_w3_dummy.middleware_onion.add(BufferedGasEstimateMiddleware)
+    async_w3_dummy.middleware_onion.inject(
+        SignAndSendRawMiddlewareBuilder.build(PRIVATE_KEY_1), layer=0
+    )
+
+    async with request_mocker(
+        async_w3_dummy,
+        mock_results={
+            "eth_getBlockByNumber": {"gasLimit": 200000},  # arbitrary high number
+            "eth_estimateGas": gas_estimate,
+        },
+    ):
+        actual = await async_w3_dummy.manager.coro_request(
+            "eth_sendTransaction",
+            [
+                {
+                    "to": ADDRESS_2,
+                    "from": ADDRESS_1,
+                    "value": 1,
+                    "nonce": 0,
+                    "maxFeePerGas": 10**9,
+                    "maxPriorityFeePerGas": 10**9,
+                }
+            ],
+        )
+
+    raw_txn = actual[1][0]
+    actual_method = actual[0]
+    assert actual_method == "eth_sendRawTransaction"
+    assert is_hexstr(raw_txn)
+
+    decoded_txn = rlp.decode(HexBytes(raw_txn[4:]), sedes=DynamicFeeTransaction)
+    assert decoded_txn["gas"] == gas_estimate + gas_buffer

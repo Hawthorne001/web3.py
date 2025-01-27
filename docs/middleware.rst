@@ -319,9 +319,13 @@ Proof of Authority
 
 .. py:class:: web3.middleware.ExtraDataToPOAMiddleware
 
-.. note::
-    It's important to inject the middleware at the 0th layer of the middleware onion:
-    ``w3.middleware_onion.inject(ExtraDataToPOAMiddleware, layer=0)``
+.. important::
+    It is **crucial** that this middleware is injected at the 0th layer of the
+    middleware onion, using
+    ``w3.middleware_onion.inject(ExtraDataToPOAMiddleware, layer=0)``, to guarantee
+    it is the *first* middleware to process the response and modify the ``extraData``
+    field. This ensures it processes the field before any other middleware attempts
+    to validate it.
 
 ``ExtraDataToPOAMiddleware`` is required to connect to ``geth --dev`` and may
 also be needed for other EVM compatible blockchains like Polygon or BNB Chain
@@ -346,7 +350,7 @@ middleware is:
 
     # confirm that the connection succeeded
     >>> w3.client_version
-    'Geth/v1.13.14-stable-4bb3c89d/linux-amd64/go1.20.2'
+    'Geth/v1.14.12-stable-4bb3c89d/linux-amd64/go1.22.4'
 
 This example connects to a local ``geth --dev`` instance on Linux with a
 unique IPC location and loads the middleware:
@@ -365,7 +369,7 @@ unique IPC location and loads the middleware:
 
     # confirm that the connection succeeded
     >>> w3.client_version
-    'Geth/v1.7.3-stable-4bb3c89d/linux-amd64/go1.9'
+    'Geth/v1.14.12-stable-4bb3c89d/linux-amd64/go1.22.4'
 
 Why is ``ExtraDataToPOAMiddleware`` necessary?
 ''''''''''''''''''''''''''''''''''''''''''''''
@@ -423,6 +427,21 @@ The ``build`` method for this middleware builder takes a single argument:
       * An ``eth_keys.PrivateKey`` object
       * A raw private key as a hex string or byte string
 
+.. important::
+    Since this middleware signs transactions, it must always run after any middleware
+    that modifies the transaction. Therefore, it is recommended to inject the signing
+    middleware at the 0th layer of the middleware onion using
+    ``w3.middleware_onion.inject(SignAndSendRawMiddlewareBuilder.build(...), layer=0)``.
+    Ensure that any transaction-modifying middleware exists in a higher layer within the
+    onion so that it runs before the signing middleware.
+
+.. note::
+    If used with ``ExtraDataToPOAMiddleware``, the injection order doesn't matter, as
+    the ``extraData`` field isn't involved in transaction signing. The key is ensuring
+    ``SignAndSendRawMiddlewareBuilder`` runs after any middleware that modifies the
+    transaction.
+
+
 .. code-block:: python
 
    >>> from web3 import Web3, EthereumTesterProvider
@@ -430,7 +449,7 @@ The ``build`` method for this middleware builder takes a single argument:
    >>> from web3.middleware import SignAndSendRawMiddlewareBuilder
    >>> from eth_account import Account
    >>> acct = Account.create('KEYSMASH FJAFJKLDSKF7JKFDJ 1530')
-   >>> w3.middleware_onion.add(SignAndSendRawMiddlewareBuilder.build(acct))
+   >>> w3.middleware_onion.inject(SignAndSendRawMiddlewareBuilder.build(acct), layer=0)
    >>> w3.eth.default_account = acct.address
 
 :ref:`Hosted nodes<local_vs_hosted>` (like Infura or Alchemy) only support signed
@@ -446,7 +465,7 @@ Instead, we can automate this process with
     >>> from eth_account import Account
     >>> import os
     >>> acct = w3.eth.account.from_key(os.environ.get('PRIVATE_KEY'))
-    >>> w3.middleware_onion.add(SignAndSendRawMiddlewareBuilder.build(acct))
+    >>> w3.middleware_onion.inject(SignAndSendRawMiddlewareBuilder.build(acct), layer=0)
     >>> w3.eth.default_account = acct.address
 
     >>> # use `eth_sendTransaction` to automatically sign and send the raw transaction
@@ -463,7 +482,7 @@ Similarly, with AsyncWeb3:
     >>> from eth_account import Account
     >>> import os
     >>> acct = async_w3.eth.account.from_key(os.environ.get('PRIVATE_KEY'))
-    >>> async_w3.middleware_onion.add(SignAndSendRawMiddlewareBuilder.build(acct))
+    >>> async_w3.middleware_onion.inject(SignAndSendRawMiddlewareBuilder.build(acct), layer=0)
     >>> async_w3.eth.default_account = acct.address
 
     >>> # use `eth_sendTransaction` to automatically sign and send the raw transaction

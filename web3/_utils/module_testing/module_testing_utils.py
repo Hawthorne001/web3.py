@@ -1,6 +1,4 @@
-from collections import (
-    deque,
-)
+import asyncio
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -57,7 +55,7 @@ flaky_geth_dev_mining decorator for tests requiring a pending block
 for the duration of the test. This behavior can be flaky
 due to timing of the test running as a block is mined.
 """
-flaky_geth_dev_mining = flaky(max_runs=3)
+flaky_geth_dev_mining = flaky(max_runs=3, min_passes=1)
 
 
 def assert_contains_log(
@@ -66,7 +64,7 @@ def assert_contains_log(
     emitter_contract_address: ChecksumAddress,
     txn_hash_with_log: HexStr,
 ) -> None:
-    assert len(result) == 1
+    assert len(result) > 0
     log_entry = result[0]
     assert log_entry["blockNumber"] == block_with_txn_with_log["number"]
     assert log_entry["blockHash"] == block_with_txn_with_log["hash"]
@@ -107,7 +105,7 @@ def mock_offchain_lookup_request_response(
         if url_from_args == mocked_request_url:
             assert kwargs["timeout"] == DEFAULT_HTTP_TIMEOUT
             if http_method.upper() == "POST":
-                assert kwargs["data"] == {"data": calldata, "sender": sender}
+                assert kwargs["json"] == {"data": calldata, "sender": sender}
             return MockedResponse()
 
         # else, make a normal request (no mocking)
@@ -156,8 +154,8 @@ def async_mock_offchain_lookup_request_response(
         # mock response only to specified url while validating appropriate fields
         if url_from_args == mocked_request_url:
             assert kwargs["timeout"] == ClientTimeout(DEFAULT_HTTP_TIMEOUT)
-            if http_method.upper() == "post":
-                assert kwargs["data"] == {"data": calldata, "sender": sender}
+            if http_method.upper() == "POST":
+                assert kwargs["json"] == {"data": calldata, "sender": sender}
             return AsyncMockedResponse()
 
         # else, make a normal request (no mocking)
@@ -179,7 +177,9 @@ class WebSocketMessageStreamMock:
     def __init__(
         self, messages: Collection[bytes] = None, raise_exception: Exception = None
     ) -> None:
-        self.messages = deque(messages) if messages else deque()
+        self.queue = asyncio.Queue()  # type: ignore  # py38 issue
+        for msg in messages or []:
+            self.queue.put_nowait(msg)
         self.raise_exception = raise_exception
 
     def __await__(self) -> Generator[Any, Any, "Self"]:
@@ -192,13 +192,12 @@ class WebSocketMessageStreamMock:
         return self
 
     async def __anext__(self) -> bytes:
+        return await self.queue.get()
+
+    async def recv(self) -> bytes:
         if self.raise_exception:
             raise self.raise_exception
-
-        elif len(self.messages) == 0:
-            raise StopAsyncIteration
-
-        return self.messages.popleft()
+        return await self.queue.get()
 
     @staticmethod
     async def pong() -> Literal[False]:

@@ -16,6 +16,7 @@ from eth_typing import (
     URI,
 )
 from eth_utils import (
+    combomethod,
     to_dict,
 )
 import requests
@@ -70,6 +71,7 @@ class HTTPProvider(JSONBaseProvider):
         ] = empty,
         **kwargs: Any,
     ) -> None:
+        super().__init__(**kwargs)
         self._request_session_manager = HTTPSessionManager()
 
         if endpoint_uri is None:
@@ -86,8 +88,6 @@ class HTTPProvider(JSONBaseProvider):
             self._request_session_manager.cache_and_return_session(
                 self.endpoint_uri, session
             )
-
-        super().__init__(**kwargs)
 
     def __str__(self) -> str:
         return f"RPC connection {self.endpoint_uri}"
@@ -116,10 +116,18 @@ class HTTPProvider(JSONBaseProvider):
             yield "headers", self.get_request_headers()
         yield from self._request_kwargs.items()
 
-    def get_request_headers(self) -> Dict[str, str]:
+    @combomethod
+    def get_request_headers(cls) -> Dict[str, str]:
+        if isinstance(cls, HTTPProvider):
+            cls_name = cls.__class__.__name__
+        else:
+            cls_name = cls.__name__
+
+        module = cls.__module__
+
         return {
             "Content-Type": "application/json",
-            "User-Agent": construct_user_agent(type(self)),
+            "User-Agent": construct_user_agent(module, cls_name),
         }
 
     def _make_request(self, method: RPCEndpoint, request_data: bytes) -> bytes:
@@ -168,12 +176,17 @@ class HTTPProvider(JSONBaseProvider):
 
     def make_batch_request(
         self, batch_requests: List[Tuple[RPCEndpoint, Any]]
-    ) -> List[RPCResponse]:
+    ) -> Union[List[RPCResponse], RPCResponse]:
         self.logger.debug(f"Making batch request HTTP, uri: `{self.endpoint_uri}`")
         request_data = self.encode_batch_rpc_request(batch_requests)
         raw_response = self._request_session_manager.make_post_request(
             self.endpoint_uri, request_data, **self.get_request_kwargs()
         )
         self.logger.debug("Received batch response HTTP.")
-        responses_list = cast(List[RPCResponse], self.decode_rpc_response(raw_response))
-        return sort_batch_response_by_response_ids(responses_list)
+        response = self.decode_rpc_response(raw_response)
+        if not isinstance(response, list):
+            # RPC errors return only one response with the error object
+            return response
+        return sort_batch_response_by_response_ids(
+            cast(List[RPCResponse], sort_batch_response_by_response_ids(response))
+        )

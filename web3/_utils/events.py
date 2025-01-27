@@ -27,6 +27,9 @@ from eth_abi.codec import (
     ABICodec,
 )
 from eth_typing import (
+    ABIComponent,
+    ABIComponentIndexed,
+    ABIEvent,
     ChecksumAddress,
     HexStr,
     Primitives,
@@ -34,13 +37,17 @@ from eth_typing import (
 )
 from eth_utils import (
     encode_hex,
-    event_abi_to_log_topic,
     is_list_like,
     keccak,
     to_bytes,
     to_dict,
     to_hex,
     to_tuple,
+)
+from eth_utils.abi import (
+    collapse_if_tuple,
+    event_abi_to_log_topic,
+    get_abi_input_names,
 )
 from eth_utils.curried import (
     apply_formatter_if,
@@ -57,7 +64,6 @@ import web3
 from web3._utils.abi import (
     exclude_indexed_event_inputs,
     get_indexed_event_inputs,
-    get_normalized_abi_arg_type,
     map_abi_data,
     named_tree,
     normalize_event_input_types,
@@ -75,19 +81,16 @@ from web3.datastructures import (
 from web3.exceptions import (
     InvalidEventABI,
     LogTopicError,
-    MismatchedABI,
     Web3ValueError,
 )
 from web3.types import (
-    ABIEvent,
-    ABIEventParams,
     BlockIdentifier,
     EventData,
     FilterParams,
     LogReceipt,
 )
-from web3.utils import (
-    get_abi_input_names,
+from web3.utils.abi import (
+    get_event_log_topics,
 )
 
 if TYPE_CHECKING:
@@ -110,11 +113,11 @@ def _log_entry_data_to_bytes(
 def construct_event_topic_set(
     event_abi: ABIEvent,
     abi_codec: ABICodec,
-    arguments: Optional[Union[Sequence[Any], Dict[str, Any]]] = None,
+    arguments: Optional[Union[List[Any], Tuple[Any], Dict[str, Any]]] = None,
 ) -> List[HexStr]:
     if arguments is None:
         arguments = {}
-    if isinstance(arguments, (list, tuple)):
+    elif isinstance(arguments, (list, tuple)):
         if len(arguments) != len(event_abi["inputs"]):
             raise Web3ValueError(
                 "When passing an argument list, the number of arguments must "
@@ -124,11 +127,9 @@ def construct_event_topic_set(
             arg["name"]: [arg_value]
             for arg, arg_value in zip(event_abi["inputs"], arguments)
         }
-
     normalized_args = {
         key: value if is_list_like(value) else [value]
-        # type ignored b/c arguments is always a dict at this point
-        for key, value in arguments.items()  # type: ignore
+        for key, value in arguments.items()
     }
 
     event_topic = encode_hex(event_abi_to_log_topic(event_abi))
@@ -206,7 +207,7 @@ def is_dynamic_sized_type(type_str: TypeStr) -> bool:
 
 @to_tuple
 def get_event_abi_types_for_decoding(
-    event_inputs: Sequence[ABIEventParams],
+    event_inputs: Sequence[Union[ABIComponent, ABIComponentIndexed]],
 ) -> Iterable[TypeStr]:
     """
     Event logs use the `keccak(value)` for indexed inputs of type `bytes` or
@@ -214,10 +215,10 @@ def get_event_abi_types_for_decoding(
     decode the log entries using the correct types.
     """
     for input_abi in event_inputs:
-        if input_abi["indexed"] and is_dynamic_sized_type(input_abi["type"]):
+        if input_abi.get("indexed") and is_dynamic_sized_type(input_abi["type"]):
             yield "bytes32"
         else:
-            yield get_normalized_abi_arg_type(input_abi)
+            yield collapse_if_tuple(input_abi)
 
 
 @curry
@@ -230,22 +231,14 @@ def get_event_data(
     Given an event ABI and a log entry for that event, return the decoded
     event data
     """
-    if event_abi["anonymous"]:
-        log_topics = log_entry["topics"]
-    elif not log_entry["topics"]:
-        raise MismatchedABI("Expected non-anonymous event to have 1 or more topics")
-    elif event_abi_to_log_topic(dict(event_abi)) != _log_entry_data_to_bytes(
-        log_entry["topics"][0]
-    ):
-        raise MismatchedABI("The event signature did not match the provided ABI")
-    else:
-        log_topics = log_entry["topics"][1:]
-
+    log_topics = get_event_log_topics(event_abi, log_entry["topics"])
     log_topics_bytes = [_log_entry_data_to_bytes(topic) for topic in log_topics]
     log_topics_abi = get_indexed_event_inputs(event_abi)
     log_topic_normalized_inputs = normalize_event_input_types(log_topics_abi)
     log_topic_types = get_event_abi_types_for_decoding(log_topic_normalized_inputs)
-    log_topic_names = get_abi_input_names(ABIEvent({"inputs": log_topics_abi}))
+    log_topic_names = get_abi_input_names(
+        ABIEvent({"name": event_abi["name"], "type": "event", "inputs": log_topics_abi})
+    )
 
     if len(log_topics_bytes) != len(log_topic_types):
         raise LogTopicError(
@@ -256,7 +249,9 @@ def get_event_data(
     log_data_abi = exclude_indexed_event_inputs(event_abi)
     log_data_normalized_inputs = normalize_event_input_types(log_data_abi)
     log_data_types = get_event_abi_types_for_decoding(log_data_normalized_inputs)
-    log_data_names = get_abi_input_names(ABIEvent({"inputs": log_data_abi}))
+    log_data_names = get_abi_input_names(
+        ABIEvent({"name": event_abi["name"], "type": "event", "inputs": log_data_abi})
+    )
 
     # sanity check that there are not name intersections between the topic
     # names and the data argument names.
@@ -462,8 +457,8 @@ class AsyncEventFilterBuilder(BaseEventFilterBuilder):
         if not isinstance(async_w3, web3.AsyncWeb3):
             raise Web3ValueError(f"Invalid web3 argument: got: {async_w3!r}")
 
-        for arg in AttributeDict.values(self.args):
-            arg._immutable = True  # type: ignore[attr-defined]
+        for arg in self.args.values():
+            arg._immutable = True
         self._immutable = True
 
         log_filter = await async_w3.eth.filter(self.filter_params)
@@ -490,12 +485,12 @@ def _build_argument_filters_from_event_abi(
     for item in event_abi["inputs"]:
         key = item["name"]
         value: "BaseArgumentFilter"
-        if item["indexed"] is True:
+        if item.get("indexed") is True:
             value = TopicArgumentFilter(
-                abi_codec=abi_codec, arg_type=get_normalized_abi_arg_type(item)
+                abi_codec=abi_codec, arg_type=collapse_if_tuple(item)
             )
         else:
-            value = DataArgumentFilter(arg_type=get_normalized_abi_arg_type(item))
+            value = DataArgumentFilter(arg_type=collapse_if_tuple(item))
         yield key, value
 
 

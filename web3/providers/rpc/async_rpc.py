@@ -19,6 +19,7 @@ from eth_typing import (
     URI,
 )
 from eth_utils import (
+    combomethod,
     to_dict,
 )
 
@@ -108,10 +109,17 @@ class AsyncHTTPProvider(AsyncJSONBaseProvider):
             yield "headers", self.get_request_headers()
         yield from self._request_kwargs.items()
 
-    def get_request_headers(self) -> Dict[str, str]:
+    @combomethod
+    def get_request_headers(cls) -> Dict[str, str]:
+        if isinstance(cls, AsyncHTTPProvider):
+            cls_name = cls.__class__.__name__
+        else:
+            cls_name = cls.__name__
+        module = cls.__module__
+
         return {
             "Content-Type": "application/json",
-            "User-Agent": construct_user_agent(type(self)),
+            "User-Agent": construct_user_agent(module, cls_name),
         }
 
     async def _make_request(self, method: RPCEndpoint, request_data: bytes) -> bytes:
@@ -160,12 +168,25 @@ class AsyncHTTPProvider(AsyncJSONBaseProvider):
 
     async def make_batch_request(
         self, batch_requests: List[Tuple[RPCEndpoint, Any]]
-    ) -> List[RPCResponse]:
+    ) -> Union[List[RPCResponse], RPCResponse]:
         self.logger.debug(f"Making batch request HTTP - uri: `{self.endpoint_uri}`")
         request_data = self.encode_batch_rpc_request(batch_requests)
         raw_response = await self._request_session_manager.async_make_post_request(
             self.endpoint_uri, request_data, **self.get_request_kwargs()
         )
         self.logger.debug("Received batch response HTTP.")
-        responses_list = cast(List[RPCResponse], self.decode_rpc_response(raw_response))
-        return sort_batch_response_by_response_ids(responses_list)
+        response = self.decode_rpc_response(raw_response)
+        if not isinstance(response, list):
+            # RPC errors return only one response with the error object
+            return response
+        return sort_batch_response_by_response_ids(
+            cast(List[RPCResponse], sort_batch_response_by_response_ids(response))
+        )
+
+    async def disconnect(self) -> None:
+        cache = self._request_session_manager.session_cache
+        for _, session in cache.items():
+            await session.close()
+        cache.clear()
+
+        self.logger.info(f"Successfully disconnected from: {self.endpoint_uri}")

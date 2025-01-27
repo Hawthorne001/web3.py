@@ -1,12 +1,15 @@
 import itertools
+import logging
 import threading
 from typing import (
     TYPE_CHECKING,
     Any,
     Callable,
     List,
+    Optional,
     Set,
     Tuple,
+    Union,
     cast,
 )
 
@@ -17,7 +20,10 @@ from eth_utils import (
 
 from web3._utils.caching import (
     CACHEABLE_REQUESTS,
-    handle_request_caching,
+)
+from web3._utils.empty import (
+    Empty,
+    empty,
 )
 from web3._utils.encoding import (
     FriendlyJsonSerde,
@@ -38,6 +44,7 @@ from web3.types import (
     RPCResponse,
 )
 from web3.utils import (
+    RequestCacheValidationThreshold,
     SimpleCache,
 )
 
@@ -46,6 +53,8 @@ if TYPE_CHECKING:
 
 
 class BaseProvider:
+    # Set generic logger for the provider. Override in subclasses for more specificity.
+    logger: logging.Logger = logging.getLogger("web3.providers.base.BaseProvider")
     # a tuple of (middleware, request_func)
     _request_func_cache: Tuple[Tuple[Middleware, ...], Callable[..., RPCResponse]] = (
         None,
@@ -57,18 +66,20 @@ class BaseProvider:
     global_ccip_read_enabled: bool = True
     ccip_read_max_redirects: int = 4
 
-    # request caching
-    _request_cache: SimpleCache
-    _request_cache_lock: threading.Lock = threading.Lock()
-
     def __init__(
         self,
         cache_allowed_requests: bool = False,
         cacheable_requests: Set[RPCEndpoint] = None,
+        request_cache_validation_threshold: Optional[
+            Union[RequestCacheValidationThreshold, int, Empty]
+        ] = empty,
     ) -> None:
         self._request_cache = SimpleCache(1000)
+        self._request_cache_lock: threading.Lock = threading.Lock()
+
         self.cache_allowed_requests = cache_allowed_requests
         self.cacheable_requests = cacheable_requests or CACHEABLE_REQUESTS
+        self.request_cache_validation_threshold = request_cache_validation_threshold
 
     def request_func(
         self, w3: "Web3", middleware_onion: MiddlewareOnion
@@ -95,7 +106,6 @@ class BaseProvider:
 
         return self._request_func_cache[-1]
 
-    @handle_request_caching
     def make_request(self, method: RPCEndpoint, params: Any) -> RPCResponse:
         raise NotImplementedError("Providers must implement this method")
 
@@ -104,14 +114,16 @@ class BaseProvider:
 
 
 class JSONBaseProvider(BaseProvider):
+    logger = logging.getLogger("web3.providers.base.JSONBaseProvider")
+
     _is_batching: bool = False
     _batch_request_func_cache: Tuple[
-        Tuple[Middleware, ...], Callable[..., List[RPCResponse]]
+        Tuple[Middleware, ...], Callable[..., Union[List[RPCResponse], RPCResponse]]
     ] = (None, None)
 
     def __init__(self, **kwargs: Any) -> None:
-        self.request_counter = itertools.count()
         super().__init__(**kwargs)
+        self.request_counter = itertools.count()
 
     def encode_rpc_request(self, method: RPCEndpoint, params: Any) -> bytes:
         rpc_dict = {
@@ -156,7 +168,7 @@ class JSONBaseProvider(BaseProvider):
 
     def batch_request_func(
         self, w3: "Web3", middleware_onion: MiddlewareOnion
-    ) -> Callable[..., List[RPCResponse]]:
+    ) -> Callable[..., Union[List[RPCResponse], RPCResponse]]:
         middleware: Tuple[Middleware, ...] = middleware_onion.as_tuple_of_middleware()
 
         cache_key = self._batch_request_func_cache[0]
@@ -187,5 +199,5 @@ class JSONBaseProvider(BaseProvider):
 
     def make_batch_request(
         self, requests: List[Tuple[RPCEndpoint, Any]]
-    ) -> List[RPCResponse]:
+    ) -> Union[List[RPCResponse], RPCResponse]:
         raise NotImplementedError("Providers must implement this method")

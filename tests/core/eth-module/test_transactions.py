@@ -184,7 +184,7 @@ def test_unmined_transaction_wait_for_receipt(w3, request_mocker):
 
     txn_hash = w3.eth.send_transaction(
         {
-            "from": w3.eth.coinbase,
+            "from": w3.eth.default_account,
             "to": "0xd3CdA913deB6f67967B99D67aCDFa1712C293601",
             "value": 123457,
         }
@@ -318,12 +318,8 @@ def test_get_transaction_formatters(w3, request_mocker):
                     {
                         "address": checksummed_addr,
                         "storageKeys": [
-                            HexBytes(
-                                "0x0000000000000000000000000000000000000000000000000000000000000032"  # noqa: E501
-                            ),
-                            HexBytes(
-                                "0x0000000000000000000000000000000000000000000000000000000000000036"  # noqa: E501
-                            ),
+                            "0x0000000000000000000000000000000000000000000000000000000000000032",  # noqa: E501
+                            "0x0000000000000000000000000000000000000000000000000000000000000036",  # noqa: E501
                         ],
                     }
                 ),

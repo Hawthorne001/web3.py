@@ -156,7 +156,7 @@ Filter Class
     Hook for subclasses to modify the format of the log entries this filter
     returns, or passes to its callback functions.
 
-    By default this returns the ``entry`` parameter umodified.
+    By default this returns the ``entry`` parameter unmodified.
 
 
 .. py:method:: Filter.is_valid_entry(entry)
@@ -555,7 +555,7 @@ The script can be run with: ``python ./eventscanner.py <your JSON-RPC API URL>``
             # # (slow down scan after starting to get hits)
             self.chunk_size_decrease = 0.5
 
-            # Factor how fast we increase chunk size if no results found
+            # Factor how fast we increase chunk size if no results are found
             self.chunk_size_increase = 2.0
 
         @property
@@ -724,7 +724,7 @@ The script can be run with: ``python ./eventscanner.py <your JSON-RPC API URL>``
                 self.state.start_chunk(current_block, chunk_size)
 
                 # Print some diagnostics to logs to try to fiddle with real world JSON-RPC API performance
-                estimated_end_block = current_block + chunk_size
+                estimated_end_block = min(current_block + chunk_size, end_block)
                 logger.debug(
                     f"Scanning token transfers for blocks: {current_block} - {estimated_end_block}, chunk size {chunk_size}, last chunk scan took {last_scan_duration}, last logs found {last_logs_found}"
                 )

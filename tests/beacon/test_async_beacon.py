@@ -3,16 +3,13 @@ from random import (
     randint,
 )
 
+from aiohttp.client_exceptions import (
+    InvalidURL,
+)
 import pytest_asyncio
 
-from web3._utils.request import (
-    _async_session_cache,
-)
 from web3.beacon import (
     AsyncBeacon,
-)
-from web3.exceptions import (
-    Web3ValueError,
 )
 
 # tested against lighthouse which uses port 5052 by default
@@ -27,20 +24,22 @@ def _assert_valid_response(response):
 
 @pytest.fixture
 def async_beacon():
-    return AsyncBeacon(base_url=BASE_URL)
+    return AsyncBeacon(base_url=BASE_URL, request_timeout=30.0)
 
 
 @pytest_asyncio.fixture(autouse=True)
-async def _cleanup():
+async def _cleanup(async_beacon):
     yield
-    [await session.close() for _, session in _async_session_cache.items()]
-    _async_session_cache.clear()
+    [
+        await session.close()
+        for _, session in async_beacon._request_session_manager.session_cache.items()
+    ]
 
 
 # sanity check to make sure the positive test cases are valid
 @pytest.mark.asyncio
 async def test_async_cl_beacon_raises_exception_on_invalid_url(async_beacon):
-    with pytest.raises(Web3ValueError):
+    with pytest.raises(InvalidURL):
         await async_beacon._async_make_get_request(
             BASE_URL + "/eth/v1/beacon/nonexistent"
         )
@@ -51,6 +50,11 @@ async def test_async_beacon_user_request_timeout():
     beacon = AsyncBeacon(base_url=BASE_URL, request_timeout=0.001)
     with pytest.raises(TimeoutError):
         await beacon.get_validators()
+
+
+@pytest.mark.asyncio
+async def test_async_beacon_request_timeout_type(async_beacon):
+    assert isinstance(async_beacon.request_timeout, float)
 
 
 # Beacon endpoint tests:
@@ -253,6 +257,12 @@ async def test_async_cl_node_get_peer(async_beacon):
 
 
 @pytest.mark.asyncio
+async def test_async_cl_node_get_peer_count(async_beacon):
+    response = await async_beacon.get_peer_count()
+    _assert_valid_response(response)
+
+
+@pytest.mark.asyncio
 async def test_async_cl_node_get_health(async_beacon):
     response = await async_beacon.get_health()
     assert isinstance(response, int)
@@ -267,4 +277,96 @@ async def test_async_cl_node_get_version(async_beacon):
 @pytest.mark.asyncio
 async def test_async_cl_node_get_syncing(async_beacon):
     response = await async_beacon.get_syncing()
+    _assert_valid_response(response)
+
+
+# Blob endpoint tests
+
+
+@pytest.mark.asyncio
+async def test_async_cl_node_get_blob_sidecars(async_beacon):
+    response = await async_beacon.get_blob_sidecars("head")
+    _assert_valid_response(response)
+
+    # test with indices
+    with_indices = await async_beacon.get_blob_sidecars("head", [0, 1])
+    _assert_valid_response(with_indices)
+
+
+# Validator endpoint tests:
+
+
+@pytest.mark.asyncio
+async def test_async_cl_validator_get_attester_duties(async_beacon):
+    finality_checkpoint_response = await async_beacon.get_finality_checkpoint()
+    _assert_valid_response(finality_checkpoint_response)
+
+    finality_checkpoint = finality_checkpoint_response["data"]
+    epoch = finality_checkpoint["finalized"]["epoch"]
+
+    validators_response = await async_beacon.get_validators()
+    _assert_valid_response(validators_response)
+
+    validators = validators_response["data"]
+    random_validator = validators[randint(0, len(validators))]
+    random_validator_index = random_validator["index"]
+
+    response = await async_beacon.get_attester_duties(epoch, [random_validator_index])
+    _assert_valid_response(response)
+
+
+@pytest.mark.asyncio
+async def test_async_cl_validator_get_block_proposer_duties(async_beacon):
+    finality_checkpoint_response = await async_beacon.get_finality_checkpoint()
+    _assert_valid_response(finality_checkpoint_response)
+
+    finality_checkpoint = finality_checkpoint_response["data"]
+    epoch = finality_checkpoint["finalized"]["epoch"]
+
+    response = await async_beacon.get_block_proposer_duties(epoch)
+    _assert_valid_response(response)
+
+
+@pytest.mark.asyncio
+async def test_async_cl_validator_get_sync_committee_duties(async_beacon):
+    finality_checkpoint_response = await async_beacon.get_finality_checkpoint()
+    _assert_valid_response(finality_checkpoint_response)
+
+    finality_checkpoint = finality_checkpoint_response["data"]
+    epoch = finality_checkpoint["finalized"]["epoch"]
+
+    validators_response = await async_beacon.get_validators()
+    _assert_valid_response(validators_response)
+
+    validators = validators_response["data"]
+    random_validator = validators[randint(0, len(validators))]
+    random_validator_index = random_validator["index"]
+
+    response = await async_beacon.get_sync_committee_duties(
+        epoch, [random_validator_index]
+    )
+    _assert_valid_response(response)
+
+
+# Rewards endpoint tests:
+
+
+@pytest.mark.asyncio
+async def test_async_cl_validator_get_attestations_rewards(async_beacon):
+    finality_checkpoint_response = await async_beacon.get_finality_checkpoint()
+    _assert_valid_response(finality_checkpoint_response)
+
+    finality_checkpoint = finality_checkpoint_response["data"]
+    epoch = finality_checkpoint["finalized"]["epoch"]
+
+    validators_response = await async_beacon.get_validators()
+    _assert_valid_response(validators_response)
+
+    validators = validators_response["data"]
+    random_validator = validators[randint(0, len(validators))]
+    random_validator_index = random_validator["index"]
+
+    response = await async_beacon.get_attestations_rewards(
+        epoch, [random_validator_index]
+    )
     _assert_valid_response(response)

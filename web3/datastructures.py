@@ -15,7 +15,6 @@ from typing import (
     Optional,
     Sequence,
     Tuple,
-    Type,
     TypeVar,
     Union,
     cast,
@@ -25,9 +24,6 @@ from eth_utils import (
     is_integer,
 )
 
-from web3._utils.formatters import (
-    recursive_map,
-)
 from web3.exceptions import (
     Web3AssertionError,
     Web3TypeError,
@@ -81,19 +77,18 @@ class ReadableAttributeDict(Mapping[TKey, TValue]):
         builder.text(")")
 
     @classmethod
-    def _apply_if_mapping(cls: Type[T], value: TValue) -> Union[T, TValue]:
+    def recursive(cls, value: TValue) -> Any:
+        """
+        Recursively convert mappings to ReadableAttributeDict instances and
+        process nested collections (e.g., lists, sets, and dictionaries).
+        """
         if isinstance(value, Mapping):
-            # error: Too many arguments for "object"
-            return cls(value)  # type: ignore
-        else:
-            return value
-
-    @classmethod
-    def recursive(cls, value: TValue) -> "ReadableAttributeDict[TKey, TValue]":
-        return cast(
-            "ReadableAttributeDict[TKey, TValue]",
-            recursive_map(cls._apply_if_mapping, value),
-        )
+            return cls({k: cls.recursive(v) for k, v in value.items()})
+        elif isinstance(value, Sequence) and not isinstance(value, (str, bytes)):
+            return type(value)([cls.recursive(v) for v in value])  # type: ignore
+        elif isinstance(value, set):
+            return {cls.recursive(v) for v in value}
+        return value
 
 
 class MutableAttributeDict(
@@ -182,7 +177,7 @@ class NamedElementOnion(Mapping[TKey, TValue]):
         if name is None:
             name = cast(TKey, element)
 
-        name = self._repr_if_not_hashable(name)
+        name = self._build_name(name)
 
         if name in self._queue:
             if name is element:
@@ -219,7 +214,7 @@ class NamedElementOnion(Mapping[TKey, TValue]):
             if name is None:
                 name = cast(TKey, element)
 
-            name = self._repr_if_not_hashable(name)
+            name = self._build_name(name)
 
             self._queue.move_to_end(name, last=False)
         elif layer == len(self._queue):
@@ -233,7 +228,7 @@ class NamedElementOnion(Mapping[TKey, TValue]):
         self._queue.clear()
 
     def replace(self, old: TKey, new: TKey) -> TValue:
-        old_name = self._repr_if_not_hashable(old)
+        old_name = self._build_name(old)
 
         if old_name not in self._queue:
             raise Web3ValueError(
@@ -248,15 +243,25 @@ class NamedElementOnion(Mapping[TKey, TValue]):
             self._queue[old_name] = new
         return to_be_replaced
 
-    def _repr_if_not_hashable(self, value: TKey) -> TKey:
+    @staticmethod
+    def _build_name(value: TKey) -> TKey:
         try:
             value.__hash__()
+            return value
         except TypeError:
-            value = cast(TKey, repr(value))
-        return value
+            # unhashable, unnamed elements
+            if not callable(value):
+                raise Web3TypeError(
+                    f"Expected a callable or hashable type, got {type(value)}"
+                )
+            # This will either be ``Web3Middleware`` class or the ``build`` method of a
+            # ``Web3MiddlewareBuilder``. Instantiate with empty ``Web3`` and use a
+            # unique identifier with the ``__hash__()`` as the name.
+            v = value(None)
+            return cast(TKey, f"{v.__class__}<{v.__hash__()}>")
 
     def remove(self, old: TKey) -> None:
-        old_name = self._repr_if_not_hashable(old)
+        old_name = self._build_name(old)
         if old_name not in self._queue:
             raise Web3ValueError("You can only remove something that has been added")
         del self._queue[old_name]
@@ -270,8 +275,8 @@ class NamedElementOnion(Mapping[TKey, TValue]):
         return [(val, key) for key, val in reversed(self._queue.items())]
 
     def _replace_with_new_name(self, old: TKey, new: TKey) -> None:
-        old_name = self._repr_if_not_hashable(old)
-        new_name = self._repr_if_not_hashable(new)
+        old_name = self._build_name(old)
+        new_name = self._build_name(new)
 
         self._queue[new_name] = new
         found_old = False
@@ -293,11 +298,11 @@ class NamedElementOnion(Mapping[TKey, TValue]):
         return NamedElementOnion(cast(List[Any], combined.items()))
 
     def __contains__(self, element: Any) -> bool:
-        element_name = self._repr_if_not_hashable(element)
+        element_name = self._build_name(element)
         return element_name in self._queue
 
     def __getitem__(self, element: TKey) -> TValue:
-        element_name = self._repr_if_not_hashable(element)
+        element_name = self._build_name(element)
         return self._queue[element_name]
 
     def __len__(self) -> int:

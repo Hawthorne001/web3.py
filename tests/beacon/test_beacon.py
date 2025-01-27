@@ -6,15 +6,12 @@ from random import (
 from requests import (
     Timeout,
 )
-
-from web3._utils.request import (
-    _session_cache,
+from requests.exceptions import (
+    InvalidURL,
 )
+
 from web3.beacon import (
     Beacon,
-)
-from web3.exceptions import (
-    Web3ValueError,
 )
 
 # tested against lighthouse which uses port 5052 by default
@@ -32,15 +29,9 @@ def beacon():
     return Beacon(base_url=BASE_URL)
 
 
-@pytest.fixture(autouse=True)
-def _cleanup():
-    yield
-    _session_cache.clear()
-
-
 # sanity check to make sure the positive test cases are valid
 def test_cl_beacon_raises_exception_on_invalid_url(beacon):
-    with pytest.raises(Web3ValueError):
+    with pytest.raises(InvalidURL):
         beacon._make_get_request(BASE_URL + "/eth/v1/beacon/nonexistent")
 
 
@@ -48,6 +39,10 @@ def test_beacon_user_defined_request_timeout():
     beacon = Beacon(base_url=BASE_URL, request_timeout=0.001)
     with pytest.raises(Timeout):
         beacon.get_validators()
+
+
+def test_beacon_request_timeout_type(beacon):
+    assert isinstance(beacon.request_timeout, float)
 
 
 # Beacon endpoint tests:
@@ -219,6 +214,11 @@ def test_cl_node_get_peer(beacon):
     _assert_valid_response(response)
 
 
+def test_cl_node_get_peer_count(beacon):
+    response = beacon.get_peer_count()
+    _assert_valid_response(response)
+
+
 def test_cl_node_get_health(beacon):
     response = beacon.get_health()
     assert isinstance(response, int)
@@ -231,4 +231,87 @@ def test_cl_node_get_version(beacon):
 
 def test_cl_node_get_syncing(beacon):
     response = beacon.get_syncing()
+    _assert_valid_response(response)
+
+
+# Blob endpoint tests
+
+
+def test_cl_node_get_blob_sidecars(beacon):
+    response = beacon.get_blob_sidecars("head")
+    _assert_valid_response(response)
+
+    # test with indices
+    with_indices = beacon.get_blob_sidecars("head", [0, 1])
+    _assert_valid_response(with_indices)
+
+
+# Validator endpoint tests:
+
+
+def test_cl_validator_get_attester_duties(beacon):
+    finality_checkpoint_response = beacon.get_finality_checkpoint()
+    _assert_valid_response(finality_checkpoint_response)
+
+    finality_checkpoint = finality_checkpoint_response["data"]
+    epoch = finality_checkpoint["finalized"]["epoch"]
+
+    validators_response = beacon.get_validators()
+    _assert_valid_response(validators_response)
+
+    validators = validators_response["data"]
+    random_validator = validators[randint(0, len(validators))]
+    random_validator_index = random_validator["index"]
+
+    response = beacon.get_attester_duties(epoch, [random_validator_index])
+    _assert_valid_response(response)
+
+
+def test_cl_validator_get_block_proposer_duties(beacon):
+    finality_checkpoint_response = beacon.get_finality_checkpoint()
+    _assert_valid_response(finality_checkpoint_response)
+
+    finality_checkpoint = finality_checkpoint_response["data"]
+    epoch = finality_checkpoint["finalized"]["epoch"]
+
+    response = beacon.get_block_proposer_duties(epoch)
+    _assert_valid_response(response)
+
+
+def test_cl_validator_get_sync_committee_duties(beacon):
+    finality_checkpoint_response = beacon.get_finality_checkpoint()
+    _assert_valid_response(finality_checkpoint_response)
+
+    finality_checkpoint = finality_checkpoint_response["data"]
+    epoch = finality_checkpoint["finalized"]["epoch"]
+
+    validators_response = beacon.get_validators()
+    _assert_valid_response(validators_response)
+
+    validators = validators_response["data"]
+    random_validator = validators[randint(0, len(validators))]
+    random_validator_index = random_validator["index"]
+
+    response = beacon.get_sync_committee_duties(epoch, [random_validator_index])
+    _assert_valid_response(response)
+
+
+# Rewards endpoint tests:
+
+
+def test_cl_validator_get_attestations_rewards(beacon):
+    finality_checkpoint_response = beacon.get_finality_checkpoint()
+    _assert_valid_response(finality_checkpoint_response)
+
+    finality_checkpoint = finality_checkpoint_response["data"]
+    epoch = finality_checkpoint["finalized"]["epoch"]
+
+    validators_response = beacon.get_validators()
+    _assert_valid_response(validators_response)
+
+    validators = validators_response["data"]
+    random_validator = validators[randint(0, len(validators))]
+    random_validator_index = random_validator["index"]
+
+    response = beacon.get_attestations_rewards(epoch, [random_validator_index])
     _assert_valid_response(response)

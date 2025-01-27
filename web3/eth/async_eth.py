@@ -99,11 +99,16 @@ from web3.types import (
     _Hash32,
 )
 from web3.utils import (
+    EthSubscription,
     async_handle_offchain_lookup,
+)
+from web3.utils.subscriptions import (
+    EthSubscriptionHandler,
 )
 
 if TYPE_CHECKING:
     from web3 import AsyncWeb3  # noqa: F401
+    from web3.contract.async_contract import AsyncContractEvent  # noqa: F401
 
 
 class AsyncEth(BaseEth):
@@ -127,16 +132,16 @@ class AsyncEth(BaseEth):
     async def accounts(self) -> Tuple[ChecksumAddress]:
         return await self._accounts()
 
-    # eth_hashrate
+    # eth_blobBaseFee
 
-    _hashrate: Method[Callable[[], Awaitable[int]]] = Method(
-        RPC.eth_hashrate,
+    _eth_blobBaseFee: Method[Callable[[], Awaitable[Wei]]] = Method(
+        RPC.eth_blobBaseFee,
         is_property=True,
     )
 
     @property
-    async def hashrate(self) -> int:
-        return await self._hashrate()
+    async def blob_base_fee(self) -> Wei:
+        return await self._eth_blobBaseFee()
 
     # eth_blockNumber
 
@@ -159,17 +164,6 @@ class AsyncEth(BaseEth):
     @property
     async def chain_id(self) -> int:
         return await self._chain_id()
-
-    # eth_coinbase
-
-    _coinbase: Method[Callable[[], Awaitable[ChecksumAddress]]] = Method(
-        RPC.eth_coinbase,
-        is_property=True,
-    )
-
-    @property
-    async def coinbase(self) -> ChecksumAddress:
-        return await self._coinbase()
 
     # eth_gasPrice
 
@@ -205,17 +199,6 @@ class AsyncEth(BaseEth):
                 stacklevel=2,
             )
             return await async_fee_history_priority_fee(self)
-
-    # eth_mining
-
-    _mining: Method[Callable[[], Awaitable[bool]]] = Method(
-        RPC.eth_mining,
-        is_property=True,
-    )
-
-    @property
-    async def mining(self) -> bool:
-        return await self._mining()
 
     # eth_syncing
 
@@ -736,6 +719,9 @@ class AsyncEth(BaseEth):
                 bool,  # newPendingTransactions, full_transactions
             ]
         ] = None,
+        handler: Optional[EthSubscriptionHandler] = None,
+        handler_context: Optional[Dict[str, Any]] = None,
+        label: Optional[str] = None,
     ) -> HexStr:
         if not isinstance(self.w3.provider, PersistentConnectionProvider):
             raise MethodNotSupported(
@@ -743,10 +729,13 @@ class AsyncEth(BaseEth):
                 "persistent connections."
             )
 
-        if subscription_arg is None:
-            return await self._subscribe(subscription_type)
-
-        return await self._subscribe_with_args(subscription_type, subscription_arg)
+        sub = EthSubscription._create_type_aware_subscription(
+            subscription_params=(subscription_type, subscription_arg),
+            handler=handler,
+            handler_context=handler_context or {},
+            label=label,
+        )
+        return await self.w3.subscription_manager.subscribe(sub)
 
     _unsubscribe: Method[Callable[[HexStr], Awaitable[bool]]] = Method(
         RPC.eth_unsubscribe,
@@ -760,13 +749,19 @@ class AsyncEth(BaseEth):
                 "persistent connections."
             )
 
-        return await self._unsubscribe(subscription_id)
+        for sub in self.w3.subscription_manager.subscriptions:
+            if sub._id == subscription_id:
+                return await sub.unsubscribe()
+
+        raise Web3ValueError(
+            f"Cannot unsubscribe subscription with id `{subscription_id}`. "
+            "Subscription not found."
+        )
 
     # -- contract methods -- #
 
     @overload
-    # mypy error: Overloaded function signatures 1 and 2 overlap with incompatible return types  # noqa: E501
-    def contract(self, address: None = None, **kwargs: Any) -> Type[AsyncContract]:  # type: ignore[overload-overlap]  # noqa: E501
+    def contract(self, address: None = None, **kwargs: Any) -> Type[AsyncContract]:
         ...
 
     @overload
