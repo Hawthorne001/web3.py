@@ -8,7 +8,6 @@ from typing import (
     Any,
     cast,
 )
-import warnings
 
 from eth_typing import (
     Address,
@@ -160,16 +159,6 @@ def dns_encode_name(name: str) -> HexBytes:
 
     # return the joined prepped labels in order and append the zero byte at the end:
     return HexBytes(b"".join(dns_prepped_labels) + b"\x00")
-
-
-def ens_encode_name(name: str) -> bytes:
-    warnings.warn(
-        "``ens_encode_name`` is deprecated and will be removed in the next "
-        "major version. Use ``dns_encode_name`` instead.",
-        DeprecationWarning,
-        stacklevel=2,
-    )
-    return bytes(dns_encode_name(name))
 
 
 def is_valid_name(name: str) -> bool:
